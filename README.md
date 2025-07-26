@@ -468,6 +468,19 @@ pytest tests/test_text_editor.py -v
 
 Current test coverage: 90%
 
+### Useful tools
+
+``` bash
+# list all tools
+npx @modelcontextprotocol/inspector mcp-text-editor --cli --method tools/list
+
+# start the server + call a tool (inspector's cli tool is not very ergonomic for specifying the request)
+python call_mcp_tool.py --name get_text_file_contents --payload-file examples/get_file_contents.json
+
+# start interactive MCP Inspector webapp
+npx @modelcontextprotocol/inspector mcp-text-editor
+```
+
 ## License
 
 MIT
