@@ -19,7 +19,7 @@ async def call_mcp_tool(server_command: list[str], tool_name: str, payload: dict
     
     server_params = StdioServerParameters(
         command=server_command[0],
-        args=server_command[1:] if len(server_command) > 1 else None,
+        args=server_command[1:] if len(server_command) > 1 else [],
     )
     
     async with stdio_client(server_params) as (read, write):
@@ -36,7 +36,7 @@ def main():
     parser = argparse.ArgumentParser(description='Call MCP server tools from command line')
     parser.add_argument('--name', required=True, help='Tool name to call')
     parser.add_argument('--payload-file', required=True, help='JSON file containing tool payload')
-    parser.add_argument('--server-command', default='mcp_text_editor',
+    parser.add_argument('--server-command', default='mcp-text-editor',
                        help='Command to start MCP server (default: mcp_text_editor)')
     
     args = parser.parse_args()
