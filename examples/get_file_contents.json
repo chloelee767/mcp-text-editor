@@ -1,6 +1,11 @@
 {
-  "file_path": "README.md",
-  "line_start": 1,
-  "line_end": 10,
-  "encoding": "utf-8"
+  "files": [
+    {
+      "file_path": "/Users/chloelee/Code/mcp-text-editor/README.md",
+      "ranges": [
+        {"start": 1, "end": 10},
+        {"start": 20, "end": 30}
+      ]
+    }
+  ]
 }
