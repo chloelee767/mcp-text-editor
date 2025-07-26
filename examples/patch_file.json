@@ -1,0 +1,17 @@
+{
+  "files": [
+    {
+      "file_path": "test.txt",
+      "hash": "your-hash-here",
+      "encoding": "utf-8",
+      "patches": [
+        {
+          "start": 1,
+          "end": 1,
+          "range_hash": "range-hash-here",
+          "contents": "New first line\n"
+        }
+      ]
+    }
+  ]
+}
