@@ -468,21 +468,6 @@ pytest tests/test_text_editor.py -v
 
 Current test coverage: 90%
 
-### Project Structure
-
-```
-mcp-text-editor/
-├── mcp_text_editor/
-│   ├── __init__.py
-│   ├── __main__.py      # Entry point
-│   ├── models.py        # Data models
-│   ├── server.py        # MCP Server implementation
-│   ├── service.py       # Core service logic
-│   └── text_editor.py   # Text editor functionality
-├── tests/               # Test files
-└── pyproject.toml       # Project configuration
-```
-
 ## License
 
 MIT
