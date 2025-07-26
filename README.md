@@ -439,7 +439,7 @@ The server handles various error cases:
 ### Setup
 
 1. Clone the repository
-2. Create and activate a Python virtual environment
+2. Create and activate a Python virtual environment: `uv venv` (`uv python install` if the appropriate python vesrion is missing)
 3. Install development dependencies: `uv pip install -e ".[dev]"`
 4. Run tests: `make all`
 
