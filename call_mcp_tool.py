@@ -58,7 +58,21 @@ def main():
     # Call the tool
     try:
         result = asyncio.run(call_mcp_tool(server_command, args.name, payload))
-        print(json.dumps(result.content, indent=2))
+        
+        # Handle different content types
+        if hasattr(result, 'content') and result.content:
+            if len(result.content) == 1 and hasattr(result.content[0], 'text'):
+                # Single text content
+                print(result.content[0].text)
+            else:
+                # Multiple content items or other types
+                for item in result.content:
+                    if hasattr(item, 'text'):
+                        print(item.text)
+                    else:
+                        print(str(item))
+        else:
+            print(str(result))
     except Exception as e:
         print(f"Error calling tool: {e}", file=sys.stderr)
         sys.exit(1)
