@@ -416,7 +416,7 @@ The server handles various error cases:
 
 1. Clone the repository
 2. Create and activate a Python virtual environment: `uv venv` (`uv python install` if the appropriate python vesrion is missing)
-3. Install development dependencies: `uv pip install -e ".[dev]"`
+3. Install development dependencies: `uv pip install -e ".[dev]"` and `uv pip install -e ".[test]"`
 4. Run tests: `make all`
 
 ### Code Quality Tools
