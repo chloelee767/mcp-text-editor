@@ -180,18 +180,7 @@ The server provides several tools for text file manipulation:
 
 Get the contents of one or more text files with line range specification.
 
-**Single Range Request:**
-
-```json
-{
-  "file_path": "path/to/file.txt",
-  "line_start": 1,
-  "line_end": 10,
-  "encoding": "utf-8"  // Optional, defaults to utf-8
-}
-```
-
-**Multiple Ranges Request:**
+**Request:**
 
 ```json
 {
@@ -220,20 +209,7 @@ Parameters:
 - `line_end`/`end`: Line number to end at (inclusive, null for end of file)
 - `encoding`: File encoding (default: "utf-8"). Specify the encoding of the text file (e.g., "shift_jis", "latin1")
 
-**Single Range Response:**
-
-```json
-{
-  "contents": "File contents",
-  "line_start": 1,
-  "line_end": 10,
-  "hash": "sha256-hash-of-contents",
-  "file_lines": 50,
-  "file_size": 1024
-}
-```
-
-**Multiple Ranges Response:**
+**Response:**
 
 ```json
 {
