@@ -22,7 +22,7 @@ MCP Client → server.py → Handler → TextEditor → File System → Response
 
 ### `patch_text_file_contents`
 
-The most complex operation, applying targeted modifications to files.
+The most complex operation, applying targeted modifications to files using string-based validation.
 
 #### Flow Details
 
@@ -34,54 +34,55 @@ sequenceDiagram
     participant Editor as TextEditor
     participant FS as File System
 
-    Client->>Server: patch_text_file_contents(file_path, file_hash, patches)
+    Client->>Server: patch_text_file_contents(files)
     Server->>Handler: run_tool(arguments)
     
     Handler->>Handler: Validate arguments
-    Handler->>Handler: Check file_path is absolute
-    Handler->>Handler: Verify file exists
+    Handler->>Handler: Check files is non-empty array
     
-    Handler->>Editor: edit_file_contents(file_path, expected_file_hash, patches, encoding)
-    
-    Editor->>FS: Read current file content
-    FS-->>Editor: File content
-    
-    Editor->>Editor: Calculate current file hash
-    Editor->>Editor: Compare with expected_file_hash
-    
-    alt Hash mismatch
-        Editor-->>Handler: Error: Hash mismatch
-        Handler-->>Server: Error response
-        Server-->>Client: Error with suggestion to get fresh content
-    else Hash matches
-        Editor->>Editor: Convert patches to EditPatch objects
-        Editor->>Editor: Sort patches bottom-to-top
-        Editor->>Editor: Validate no overlapping patches
+    loop For each file operation
+        Handler->>Handler: Check file_path is absolute
+        Handler->>Handler: Verify file exists
         
-        loop For each patch
-            Editor->>Editor: Validate range_hash against actual content
-            alt Range hash mismatch
-                Editor-->>Handler: Error: Range hash mismatch
-            else Range hash matches
-                Editor->>Editor: Apply patch (replace/insert)
+        Handler->>Editor: edit_file_contents_v2(file_path, patches, encoding)
+        
+        Editor->>FS: Read current file content
+        FS-->>Editor: File content
+        
+        Editor->>Editor: Validate range overlaps (intra and inter-patch)
+        
+        alt Overlapping ranges detected
+            Editor-->>Handler: Error: Overlapping ranges
+        else No overlaps
+            Editor->>Editor: Sort patches by highest line number
+            
+            loop For each patch
+                loop For each range in patch
+                    Editor->>Editor: Validate old_string matches actual content
+                    alt String mismatch
+                        Editor-->>Handler: Error: Content mismatch
+                    else String matches
+                        Editor->>Editor: Apply new_string to range
+                    end
+                end
             end
+            
+            Editor->>FS: Write modified content atomically
+            Editor->>Editor: Calculate new file hash
+            Editor-->>Handler: Success response with new hash
         end
-        
-        Editor->>FS: Write modified content atomically
-        Editor->>Editor: Calculate new file hash
-        Editor-->>Handler: Success response with new hash
     end
     
-    Handler-->>Server: JSON response
+    Handler-->>Server: JSON response with results for all files
     Server-->>Client: MCP response
 ```
 
 #### Key Code Locations
 - **Entry**: `server.py:65` → `patch_file_handler.run_tool()`
-- **Validation**: `handlers/patch_text_file_contents.py:74-92`
-- **Core Logic**: `text_editor.py:223` → `edit_file_contents()`
-- **Hash Validation**: `text_editor.py:297-305`
-- **Patch Processing**: `text_editor.py:310-340`
+- **Validation**: `handlers/patch_text_file_contents.py:90-131`
+- **Core Logic**: `text_editor.py:501` → `edit_file_contents_v2()`
+- **String Validation**: `text_editor.py:619-625`
+- **Multi-range Processing**: `text_editor.py:627-645`
 
 ### `get_text_file_contents`
 
@@ -258,7 +259,26 @@ sequenceDiagram
 
 ## Error Handling Flows
 
-### Hash Mismatch Detection
+### String Mismatch Detection (patch_text_file_contents)
+
+```
+Patch Request
+        ↓
+Read Current File Content
+        ↓
+Extract Content from Specified Range
+        ↓
+Compare with old_string
+        ↓
+    [Mismatch?]
+        ↓
+Return Error with:
+- Line range where mismatch occurred
+- Suggestion to check content
+- Hint about exact string matching
+```
+
+### Hash Mismatch Detection (other operations)
 
 ```
 File Operation Request
@@ -331,6 +351,7 @@ Return Error:
 - File system provides isolation
 
 ### Conflict Resolution
-- Hash-based optimistic concurrency control
+- String-based validation for patch operations (no hash required)
+- Hash-based optimistic concurrency control for other operations
 - No explicit locking mechanism
 - Client responsible for retry logic on conflicts
