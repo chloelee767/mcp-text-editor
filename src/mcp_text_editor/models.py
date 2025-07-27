@@ -223,3 +223,28 @@ class PatchTextFileContentsRequest(BaseModel):
     encoding: Optional[str] = Field(
         "utf-8", description="Text encoding (default: 'utf-8')"
     )
+
+
+class PatchRange(BaseModel):
+    """Represents a line range for patching."""
+    start: int = Field(..., description="Starting line number (1-based)")
+    end: Optional[int] = Field(None, description="Ending line number (null for end of file)")
+
+
+class StringPatch(BaseModel):
+    """Model for string-based patch operation."""
+    old_string: str = Field(..., description="Expected content to be replaced")
+    new_string: str = Field(..., description="New content to replace with")
+    ranges: List[PatchRange] = Field(..., description="Line ranges where this patch applies")
+
+
+class FileOperation(BaseModel):
+    """Model for file operation in new API."""
+    file_path: str = Field(..., description="Path to the file")
+    encoding: Optional[str] = Field("utf-8", description="Text encoding")
+    patches: List[StringPatch] = Field(..., description="Patches to apply")
+
+
+class NewPatchTextFileContentsRequest(BaseModel):
+    """New request model for patching text files."""
+    files: List[FileOperation] = Field(..., description="List of file operations")
