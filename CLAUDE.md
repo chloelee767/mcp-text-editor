@@ -12,6 +12,9 @@ source .venv/bin/activate
 python call_mcp_tool.py --name patch_text_file_contents --payload-file examples/patch_file.json
 ```
 
+Run unit tests:
+- If inside the virtualenv: `pytest`
+- If outside the virtualenv: `uv run pytest`
 
 ## Information that may be useful
 
