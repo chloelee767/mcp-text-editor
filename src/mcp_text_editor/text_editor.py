@@ -498,6 +498,198 @@ class TextEditor:
                 hint="Please try again or report the issue if it persists",
             )
 
+    async def edit_file_contents_v2(
+        self,
+        file_path: str,
+        patches: List[Dict[str, Any]],
+        encoding: str = "utf-8",
+    ) -> Dict[str, Any]:
+        """
+        Edit file contents with string-based validation and multi-range patches.
+
+        Args:
+            file_path (str): Path to the file to edit
+            patches (List[Dict[str, Any]]): List of patches to apply, each containing:
+                - old_string (str): Expected content to be replaced
+                - new_string (str): New content to replace with
+                - ranges (List[Dict]): Line ranges where this patch applies
+                    - start (int): Starting line number (1-based)
+                    - end (Optional[int]): Ending line number (null for end of file)
+
+        Returns:
+            Dict[str, Any]: Results of the operation containing:
+                - result: "ok" or "error"
+                - hash: New file hash if successful, None if error
+                - reason: Error message if result is "error"
+        """
+        self._validate_file_path(file_path)
+        try:
+            if not os.path.exists(file_path):
+                return self.create_error_response(
+                    f"File not found: {file_path}",
+                    suggestion="append",
+                    hint="File must exist before applying patches",
+                )
+
+            # Read current file content
+            (
+                current_file_content,
+                _,
+                _,
+                current_file_hash,
+                total_lines,
+                _,
+            ) = await self.read_file_contents(file_path, encoding=encoding)
+
+            if not current_file_content:
+                current_file_content = ""
+                lines = []
+            else:
+                lines = current_file_content.splitlines(keepends=True)
+
+            # Collect all ranges for overlap validation
+            all_ranges = []
+            for patch in patches:
+                patch_ranges = patch["ranges"]
+                
+                # Validate ranges within this patch don't overlap
+                for i in range(len(patch_ranges)):
+                    for j in range(i + 1, len(patch_ranges)):
+                        if self._ranges_overlap(patch_ranges[i], patch_ranges[j]):
+                            return self.create_error_response(
+                                "Overlapping ranges within patch detected",
+                                suggestion="patch",
+                                hint="Ranges within a single patch cannot overlap",
+                            )
+                
+                # Collect ranges for inter-patch validation
+                all_ranges.extend(patch_ranges)
+
+            # Validate ranges across patches don't overlap
+            for i in range(len(all_ranges)):
+                for j in range(i + 1, len(all_ranges)):
+                    if self._ranges_overlap(all_ranges[i], all_ranges[j]):
+                        return self.create_error_response(
+                            "Overlapping ranges across patches detected",
+                            suggestion="patch",
+                            hint="Ranges across different patches cannot overlap",
+                        )
+
+            # Validate string content and apply patches
+            # Process patches in reverse order to avoid line number shifts
+            sorted_patches = sorted(
+                patches,
+                key=lambda patch: max(
+                    range_spec["start"] for range_spec in patch["ranges"]
+                ),
+                reverse=True,
+            )
+
+            for patch in sorted_patches:
+                old_string = patch["old_string"]
+                new_string = patch["new_string"]
+                ranges = patch["ranges"]
+
+                # Validate all ranges contain the expected content
+                for range_spec in ranges:
+                    start_zero = range_spec["start"] - 1
+                    end_zero = (
+                        len(lines) - 1
+                        if range_spec["end"] is None
+                        else range_spec["end"] - 1
+                    )
+
+                    # Validate range bounds
+                    if start_zero < 0 or start_zero >= len(lines):
+                        return self.create_error_response(
+                            f"Invalid start line {range_spec['start']}: out of range",
+                            suggestion="patch",
+                            hint="Line numbers must be within file bounds",
+                        )
+
+                    if range_spec["end"] is not None and (
+                        end_zero < start_zero or end_zero >= len(lines)
+                    ):
+                        return self.create_error_response(
+                            f"Invalid end line {range_spec['end']}: out of range",
+                            suggestion="patch",
+                            hint="End line must be >= start line and within file bounds",
+                        )
+
+                    actual_content = "".join(lines[start_zero : end_zero + 1])
+                    if actual_content != old_string:
+                        return self.create_error_response(
+                            f"Content at lines {range_spec['start']}-{range_spec['end'] or 'EOF'} does not match expected string",
+                            suggestion="patch",
+                            hint="The old_string must exactly match the content at specified ranges",
+                        )
+
+                # Apply replacement to all ranges (in reverse order)
+                sorted_ranges = sorted(
+                    ranges,
+                    key=lambda r: r["start"],
+                    reverse=True,
+                )
+
+                for range_spec in sorted_ranges:
+                    start_zero = range_spec["start"] - 1
+                    end_zero = (
+                        len(lines) - 1
+                        if range_spec["end"] is None
+                        else range_spec["end"] - 1
+                    )
+
+                    # Replace content
+                    new_content = new_string if new_string.endswith("\n") else new_string + "\n"
+                    new_lines = new_content.splitlines(keepends=True)
+                    lines[start_zero : end_zero + 1] = new_lines
+
+            # Write the final content back to file
+            final_content = "".join(lines)
+            with open(file_path, "w", encoding=encoding) as f:
+                f.write(final_content)
+
+            # Calculate new hash
+            new_hash = self.calculate_hash(final_content)
+
+            return {
+                "result": "ok",
+                "hash": new_hash,
+                "reason": None,
+            }
+
+        except FileNotFoundError:
+            return self.create_error_response(
+                f"File not found: {file_path}",
+                suggestion="append",
+                hint="File must exist before applying patches",
+            )
+        except (IOError, UnicodeError, PermissionError) as e:
+            return self.create_error_response(
+                f"Error editing file: {str(e)}",
+                suggestion="patch",
+                hint="Please check file permissions and try again",
+            )
+        except Exception as e:
+            import traceback
+
+            logger.error(f"Error: {str(e)}")
+            logger.error(f"Traceback:\n{traceback.format_exc()}")
+            return self.create_error_response(
+                f"Error: {str(e)}",
+                suggestion="patch",
+                hint="Please try again or report the issue if it persists",
+            )
+
+    def _ranges_overlap(self, range1: Dict[str, Any], range2: Dict[str, Any]) -> bool:
+        """Check if two ranges overlap."""
+        start1 = range1["start"]
+        end1 = range1["end"] or start1
+        start2 = range2["start"]
+        end2 = range2["end"] or start2
+
+        return start1 <= end2 and end1 >= start2
+
     async def insert_text_file_contents(
         self,
         file_path: str,
