@@ -1,0 +1,20 @@
+{
+  "files": [
+    {
+      "file_path": "/Users/chloelee/Code/mcp-text-editor/test_file.txt",
+      "encoding": "utf-8",
+      "patches": [
+        {
+          "old_string": "Line 1: Original content\n",
+          "new_string": "Line 1: Updated content\n",
+          "ranges": [
+            {
+              "start": 1,
+              "end": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

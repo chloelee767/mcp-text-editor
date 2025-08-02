@@ -1,0 +1,24 @@
+{
+  "file_path": "/path/to/file.txt",
+  "deletions": [
+    {
+      "expected_content": "Content to delete from lines 5-8\n",
+      "ranges": [
+        {
+          "start": 5,
+          "end": 8
+        }
+      ]
+    },
+    {
+      "expected_content": "Another section to delete\n",
+      "ranges": [
+        {
+          "start": 15,
+          "end": 16
+        }
+      ]
+    }
+  ],
+  "encoding": "utf-8"
+}

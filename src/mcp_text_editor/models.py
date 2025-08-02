@@ -223,3 +223,78 @@ class PatchTextFileContentsRequest(BaseModel):
     encoding: Optional[str] = Field(
         "utf-8", description="Text encoding (default: 'utf-8')"
     )
+
+
+class PatchRange(BaseModel):
+    """Represents a line range for patching."""
+    start: int = Field(..., description="Starting line number (1-based)")
+    end: Optional[int] = Field(None, description="Ending line number (null for end of file)")
+
+
+class StringPatch(BaseModel):
+    """Model for string-based patch operation."""
+    old_string: str = Field(..., description="Expected content to be replaced")
+    new_string: str = Field(..., description="New content to replace with")
+    ranges: List[PatchRange] = Field(..., description="Line ranges where this patch applies")
+
+
+class FileOperation(BaseModel):
+    """Model for file operation in new API."""
+    file_path: str = Field(..., description="Path to the file")
+    encoding: Optional[str] = Field("utf-8", description="Text encoding")
+    patches: List[StringPatch] = Field(..., description="Patches to apply")
+
+
+class NewPatchTextFileContentsRequest(BaseModel):
+    """New request model for patching text files."""
+    files: List[FileOperation] = Field(..., description="List of file operations")
+
+
+# New string-based models for delete, insert, append operations
+
+class DeleteOperation(BaseModel):
+    """Model for string-based delete operation."""
+    expected_content: str = Field(..., description="Expected content to be deleted")
+    ranges: List[PatchRange] = Field(..., description="Line ranges where this content should be deleted")
+
+
+class DeleteTextFileContentsRequestV2(BaseModel):
+    """New request model for deleting text from files using string validation."""
+    file_path: str = Field(..., description="Path to the text file")
+    deletions: List[DeleteOperation] = Field(..., min_length=1, description="List of deletion operations")
+    encoding: Optional[str] = Field("utf-8", description="Text encoding")
+
+
+class InsertOperation(BaseModel):
+    """Model for string-based insert operation."""
+    content_to_insert: str = Field(..., description="Content to insert")
+    position: str = Field(..., description="Position relative to reference line ('before' or 'after')")
+    context_line: str = Field(..., description="Expected content of the reference line")
+    line_number: int = Field(..., description="Line number of the reference line")
+    
+    @field_validator("position")
+    def validate_position(cls, v):
+        if v not in ["before", "after"]:
+            raise ValueError("Position must be 'before' or 'after'")
+        return v
+    
+    @field_validator("line_number")
+    def validate_line_number(cls, v):
+        if v < 1:
+            raise ValueError("Line number must be positive")
+        return v
+
+
+class InsertTextFileContentsRequestV2(BaseModel):
+    """New request model for inserting text using context validation."""
+    file_path: str = Field(..., description="Path to the text file")
+    insertions: List[InsertOperation] = Field(..., description="List of insertion operations")
+    encoding: Optional[str] = Field("utf-8", description="Text encoding")
+
+
+class AppendTextFileContentsRequestV2(BaseModel):
+    """New request model for appending text using final-line validation."""
+    file_path: str = Field(..., description="Path to the text file")
+    content_to_append: str = Field(..., description="Content to append to the file")
+    expected_file_ending: str = Field(..., description="Expected content of the final line for validation")
+    encoding: Optional[str] = Field("utf-8", description="Text encoding")

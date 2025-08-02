@@ -180,18 +180,7 @@ The server provides several tools for text file manipulation:
 
 Get the contents of one or more text files with line range specification.
 
-**Single Range Request:**
-
-```json
-{
-  "file_path": "path/to/file.txt",
-  "line_start": 1,
-  "line_end": 10,
-  "encoding": "utf-8"  // Optional, defaults to utf-8
-}
-```
-
-**Multiple Ranges Request:**
+**Request:**
 
 ```json
 {
@@ -220,20 +209,7 @@ Parameters:
 - `line_end`/`end`: Line number to end at (inclusive, null for end of file)
 - `encoding`: File encoding (default: "utf-8"). Specify the encoding of the text file (e.g., "shift_jis", "latin1")
 
-**Single Range Response:**
-
-```json
-{
-  "contents": "File contents",
-  "line_start": 1,
-  "line_end": 10,
-  "hash": "sha256-hash-of-contents",
-  "file_lines": 50,
-  "file_size": 1024
-}
-```
-
-**Multiple Ranges Response:**
+**Response:**
 
 ```json
 {
@@ -439,8 +415,8 @@ The server handles various error cases:
 ### Setup
 
 1. Clone the repository
-2. Create and activate a Python virtual environment
-3. Install development dependencies: `uv pip install -e ".[dev]"`
+2. Create and activate a Python virtual environment: `uv venv` (`uv python install` if the appropriate python vesrion is missing)
+3. Install development dependencies: `uv pip install -e ".[dev]"` and `uv pip install -e ".[test]"`
 4. Run tests: `make all`
 
 ### Code Quality Tools
@@ -468,19 +444,17 @@ pytest tests/test_text_editor.py -v
 
 Current test coverage: 90%
 
-### Project Structure
+### Useful tools
 
-```
-mcp-text-editor/
-├── mcp_text_editor/
-│   ├── __init__.py
-│   ├── __main__.py      # Entry point
-│   ├── models.py        # Data models
-│   ├── server.py        # MCP Server implementation
-│   ├── service.py       # Core service logic
-│   └── text_editor.py   # Text editor functionality
-├── tests/               # Test files
-└── pyproject.toml       # Project configuration
+``` bash
+# list all tools
+npx @modelcontextprotocol/inspector mcp-text-editor --cli --method tools/list
+
+# start the server + call a tool (inspector's cli tool is not very ergonomic for specifying the request)
+python call_mcp_tool.py --name get_text_file_contents --payload-file examples/get_file_contents.json
+
+# start interactive MCP Inspector webapp
+npx @modelcontextprotocol/inspector mcp-text-editor
 ```
 
 ## License

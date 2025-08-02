@@ -17,7 +17,7 @@ class PatchTextFileContentsHandler(BaseHandler):
     """Handler for patching a text file."""
 
     name = "patch_text_file_contents"
-    description = "Apply patches to text files with hash-based validation for concurrency control.you need to use get_text_file_contents tool to get the file hash and range hash every time before using this tool. you can use append_text_file_contents tool to append text contents to the file without range hash, start and end. you can use insert_text_file_contents tool to insert text contents to the file without range hash, start and end."
+    description = "Apply patches to text files with string-based validation. Use old_string to specify exact content to replace and new_string for replacement. Supports multi-range patches."
 
     def get_tool_description(self) -> Tool:
         """Get the tool description."""
@@ -27,79 +27,103 @@ class PatchTextFileContentsHandler(BaseHandler):
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "file_path": {
-                        "type": "string",
-                        "description": "Path to the text file. File path must be absolute.",
-                    },
-                    "file_hash": {
-                        "type": "string",
-                        "description": "Hash of the file contents for concurrency control.",
-                    },
-                    "patches": {
+                    "files": {
                         "type": "array",
-                        "description": "List of patches to apply",
+                        "description": "List of file operations",
                         "items": {
                             "type": "object",
                             "properties": {
-                                "start": {
-                                    "type": "integer",
-                                    "description": "Starting line number (1-based).it should match the range hash.",
-                                },
-                                "end": {
-                                    "type": "integer",
-                                    "description": "Ending line number (null for end of file).it should match the range hash.",
-                                },
-                                "contents": {
+                                "file_path": {
                                     "type": "string",
-                                    "description": "New content to replace the range with",
+                                    "description": "Path to the file. File path must be absolute.",
                                 },
-                                "range_hash": {
+                                "encoding": {
                                     "type": "string",
-                                    "description": "Hash of the content being replaced. it should get from get_text_file_contents tool with the same start and end.",
+                                    "description": "Text encoding (default: 'utf-8')",
+                                    "default": "utf-8",
+                                },
+                                "patches": {
+                                    "type": "array",
+                                    "description": "Patches to apply",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "old_string": {
+                                                "type": "string",
+                                                "description": "Expected content to be replaced",
+                                            },
+                                            "new_string": {
+                                                "type": "string",
+                                                "description": "New content to replace with",
+                                            },
+                                            "ranges": {
+                                                "type": "array",
+                                                "description": "Line ranges where this patch applies",
+                                                "items": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "start": {
+                                                            "type": "integer",
+                                                            "description": "Starting line number (1-based)",
+                                                        },
+                                                        "end": {
+                                                            "type": ["integer", "null"],
+                                                            "description": "Ending line number (null for end of file)",
+                                                        },
+                                                    },
+                                                    "required": ["start"],
+                                                },
+                                            },
+                                        },
+                                        "required": ["old_string", "new_string", "ranges"],
+                                    },
                                 },
                             },
-                            "required": ["start", "end", "contents", "range_hash"],
+                            "required": ["file_path", "patches"],
                         },
                     },
-                    "encoding": {
-                        "type": "string",
-                        "description": "Text encoding (default: 'utf-8')",
-                        "default": "utf-8",
-                    },
                 },
-                "required": ["file_path", "file_hash", "patches"],
+                "required": ["files"],
             },
         )
 
     async def run_tool(self, arguments: Dict[str, Any]) -> Sequence[TextContent]:
         """Execute the tool with given arguments."""
         try:
-            if "file_path" not in arguments:
-                raise RuntimeError("Missing required argument: file_path")
-            if "file_hash" not in arguments:
-                raise RuntimeError("Missing required argument: file_hash")
-            if "patches" not in arguments:
-                raise RuntimeError("Missing required argument: patches")
+            if "files" not in arguments:
+                raise RuntimeError("Missing required argument: files")
 
-            file_path = arguments["file_path"]
-            if not os.path.isabs(file_path):
-                raise RuntimeError(f"File path must be absolute: {file_path}")
+            files = arguments["files"]
+            if not isinstance(files, list) or len(files) == 0:
+                raise RuntimeError("files must be a non-empty list")
 
-            # Check if file exists
-            if not os.path.exists(file_path):
-                raise RuntimeError(f"File does not exist: {file_path}")
+            results = []
+            
+            for file_op in files:
+                file_path = file_op["file_path"]
+                if not os.path.isabs(file_path):
+                    raise RuntimeError(f"File path must be absolute: {file_path}")
 
-            encoding = arguments.get("encoding", "utf-8")
+                # Check if file exists
+                if not os.path.exists(file_path):
+                    raise RuntimeError(f"File does not exist: {file_path}")
 
-            # Apply patches using editor.edit_file_contents
-            result = await self.editor.edit_file_contents(
-                file_path=file_path,
-                expected_file_hash=arguments["file_hash"],
-                patches=arguments["patches"],
-                encoding=encoding,
-            )
+                encoding = file_op.get("encoding", "utf-8")
+                patches = file_op["patches"]
 
-            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+                # Apply patches using the new editor method
+                result = await self.editor.edit_file_contents_v2(
+                    file_path=file_path,
+                    patches=patches,
+                    encoding=encoding,
+                )
+                
+                results.append({
+                    "file_path": file_path,
+                    "result": result
+                })
+
+            return [TextContent(type="text", text=json.dumps(results, indent=2))]
 
         except Exception as e:
             logger.error(f"Error processing request: {str(e)}")

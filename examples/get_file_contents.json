@@ -1,0 +1,11 @@
+{
+  "files": [
+    {
+      "file_path": "/Users/chloelee/Code/mcp-text-editor/README.md",
+      "ranges": [
+        {"start": 1, "end": 10},
+        {"start": 20, "end": 30}
+      ]
+    }
+  ]
+}

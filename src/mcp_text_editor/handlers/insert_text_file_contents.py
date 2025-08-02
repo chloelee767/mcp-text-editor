@@ -17,7 +17,7 @@ class InsertTextFileContentsHandler(BaseHandler):
     """Handler for inserting content before or after a specific line in a text file."""
 
     name = "insert_text_file_contents"
-    description = "Insert content before or after a specific line in a text file. Uses hash-based validation for concurrency control. You need to provide the file_hash comes from get_text_file_contents."
+    description = "Insert content before or after a specific line in a text file with context validation. Supports batch insertions with context_line validation at insertion points."
 
     def get_tool_description(self) -> Tool:
         """Get the tool description."""
@@ -31,21 +31,32 @@ class InsertTextFileContentsHandler(BaseHandler):
                         "type": "string",
                         "description": "Path to the text file. File path must be absolute.",
                     },
-                    "file_hash": {
-                        "type": "string",
-                        "description": "Hash of the file contents for concurrency control. it should be matched with the file_hash when get_text_file_contents is called.",
-                    },
-                    "contents": {
-                        "type": "string",
-                        "description": "Content to insert",
-                    },
-                    "before": {
-                        "type": "integer",
-                        "description": "Line number before which to insert content (mutually exclusive with 'after')",
-                    },
-                    "after": {
-                        "type": "integer",
-                        "description": "Line number after which to insert content (mutually exclusive with 'before')",
+                    "insertions": {
+                        "type": "array",
+                        "description": "List of insertion operations",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "content_to_insert": {
+                                    "type": "string",
+                                    "description": "Content to insert",
+                                },
+                                "position": {
+                                    "type": "string",
+                                    "enum": ["before", "after"],
+                                    "description": "Position relative to reference line ('before' or 'after')",
+                                },
+                                "context_line": {
+                                    "type": "string",
+                                    "description": "Expected content of the reference line for validation",
+                                },
+                                "line_number": {
+                                    "type": "integer",
+                                    "description": "Line number of the reference line",
+                                },
+                            },
+                            "required": ["content_to_insert", "position", "context_line", "line_number"],
+                        },
                     },
                     "encoding": {
                         "type": "string",
@@ -53,7 +64,7 @@ class InsertTextFileContentsHandler(BaseHandler):
                         "default": "utf-8",
                     },
                 },
-                "required": ["file_path", "file_hash", "contents"],
+                "required": ["file_path", "insertions"],
             },
         )
 
@@ -62,40 +73,46 @@ class InsertTextFileContentsHandler(BaseHandler):
         try:
             if "file_path" not in arguments:
                 raise RuntimeError("Missing required argument: file_path")
-            if "file_hash" not in arguments:
-                raise RuntimeError("Missing required argument: file_hash")
-            if "contents" not in arguments:
-                raise RuntimeError("Missing required argument: contents")
+            if "insertions" not in arguments:
+                raise RuntimeError("Missing required argument: insertions")
 
             file_path = arguments["file_path"]
             if not os.path.isabs(file_path):
                 raise RuntimeError(f"File path must be absolute: {file_path}")
 
-            # Check if exactly one of before/after is specified
-            if ("before" in arguments) == ("after" in arguments):
-                raise RuntimeError(
-                    "Exactly one of 'before' or 'after' must be specified"
-                )
+            insertions = arguments["insertions"]
+            if not isinstance(insertions, list) or len(insertions) == 0:
+                raise RuntimeError("insertions must be a non-empty list")
 
-            line_number = (
-                arguments.get("before")
-                if "before" in arguments
-                else arguments.get("after")
-            )
-            is_before = "before" in arguments
             encoding = arguments.get("encoding", "utf-8")
 
-            # Get result from editor
-            result = await self.editor.insert_text_file_contents(
+            # Validate insertion operations
+            for i, insertion in enumerate(insertions):
+                if not isinstance(insertion, dict):
+                    raise RuntimeError(f"Insertion {i} must be an object")
+                
+                required_fields = ["content_to_insert", "position", "context_line", "line_number"]
+                for field in required_fields:
+                    if field not in insertion:
+                        raise RuntimeError(f"Insertion {i} missing required field: {field}")
+                
+                if insertion["position"] not in ["before", "after"]:
+                    raise RuntimeError(f"Insertion {i} position must be 'before' or 'after'")
+                
+                if not isinstance(insertion["line_number"], int) or insertion["line_number"] < 1:
+                    raise RuntimeError(f"Insertion {i} line_number must be a positive integer")
+
+            # Check if file exists after validation
+            if not os.path.exists(file_path):
+                raise RuntimeError(f"File does not exist: {file_path}")
+
+            # Get result from editor using the new v2 method
+            result = await self.editor.insert_text_file_contents_v2(
                 file_path=file_path,
-                file_hash=arguments["file_hash"],
-                contents=arguments["contents"],
-                before=line_number if is_before else None,
-                after=None if is_before else line_number,
+                insertions=insertions,
                 encoding=encoding,
             )
-            # Wrap result with file_path key
-            result = {file_path: result}
+            
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
         except Exception as e:

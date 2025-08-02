@@ -1,0 +1,6 @@
+{
+  "file_path": "/path/to/file.txt",
+  "content_to_append": "Content to append to the end of the file\n",
+  "expected_file_ending": "Expected content of the final line",
+  "encoding": "utf-8"
+}

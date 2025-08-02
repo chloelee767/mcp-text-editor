@@ -109,29 +109,31 @@ async def test_patch_text_file_errors(tmp_path):
     non_existent_file = os.path.join(tmp_path, "non_existent.txt")
     relative_path = "test.txt"
 
-    # Test missing file_path
-    with pytest.raises(RuntimeError, match="Missing required argument: file_path"):
+    # Test missing files
+    with pytest.raises(RuntimeError, match="Missing required argument: files"):
         await handler.run_tool({"patches": [], "file_hash": "hash"})
 
-    # Test missing file_hash
-    with pytest.raises(RuntimeError, match="Missing required argument: file_hash"):
-        await handler.run_tool({"file_path": file_path, "patches": []})
-
-    # Test missing patches
-    with pytest.raises(RuntimeError, match="Missing required argument: patches"):
-        await handler.run_tool({"file_path": file_path, "file_hash": "hash"})
+    # Test empty files array
+    with pytest.raises(RuntimeError, match="files must be a non-empty list"):
+        await handler.run_tool({"files": []})
 
     # Test non-absolute file path
     with pytest.raises(RuntimeError, match="File path must be absolute"):
-        await handler.run_tool(
-            {"file_path": relative_path, "file_hash": "hash", "patches": []}
-        )
+        await handler.run_tool({
+            "files": [{
+                "file_path": relative_path,
+                "patches": []
+            }]
+        })
 
     # Test non-existent file
     with pytest.raises(RuntimeError, match="File does not exist"):
-        await handler.run_tool(
-            {"file_path": non_existent_file, "file_hash": "hash", "patches": []}
-        )
+        await handler.run_tool({
+            "files": [{
+                "file_path": non_existent_file,
+                "patches": []
+            }]
+        })
 
 
 @pytest.mark.asyncio
@@ -145,30 +147,27 @@ async def test_patch_text_file_unexpected_error(tmp_path, mocker):
     with open(file_path, "w", encoding="utf-8") as f:
         f.write("test content\n")
 
-    # Mock edit_file_contents to raise an unexpected error
-    async def mock_edit_file_contents(*args, **kwargs):
+    # Mock edit_file_contents_v2 to raise an unexpected error
+    async def mock_edit_file_contents_v2(*args, **kwargs):
         raise Exception("Unexpected test error")
 
     # Patch the editor's method using mocker
-    mocker.patch.object(editor, "edit_file_contents", mock_edit_file_contents)
+    mocker.patch.object(editor, "edit_file_contents_v2", mock_edit_file_contents_v2)
 
     # Try to patch the file with the mocked error
     with pytest.raises(
         RuntimeError, match="Error processing request: Unexpected test error"
     ):
-        await handler.run_tool(
-            {
+        await handler.run_tool({
+            "files": [{
                 "file_path": file_path,
-                "file_hash": "dummy_hash",
-                "patches": [
-                    {
-                        "start": 1,
-                        "contents": "new content\n",
-                        "range_hash": "dummy_hash",
-                    }
-                ],
-            }
-        )
+                "patches": [{
+                    "old_string": "test content\n",
+                    "new_string": "new content\n",
+                    "ranges": [{"start": 1, "end": 1}]
+                }]
+            }]
+        })
 
 
 @pytest.mark.asyncio
