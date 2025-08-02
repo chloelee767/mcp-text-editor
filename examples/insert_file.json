@@ -1,0 +1,18 @@
+{
+  "file_path": "/path/to/file.txt",
+  "insertions": [
+    {
+      "content_to_insert": "New content to insert after line 10\n",
+      "position": "after",
+      "context_line": "Expected content of line 10",
+      "line_number": 10
+    },
+    {
+      "content_to_insert": "Another insertion before line 5\n",
+      "position": "before",
+      "context_line": "Expected content of line 5",
+      "line_number": 5
+    }
+  ],
+  "encoding": "utf-8"
+}
