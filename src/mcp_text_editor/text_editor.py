@@ -956,3 +956,318 @@ class TextEditor:
                     "hash": None,
                 }
             }
+
+    async def delete_text_file_contents_v2(
+        self,
+        file_path: str,
+        deletions: List[Dict[str, Any]],
+        encoding: str = "utf-8",
+    ) -> Dict[str, Any]:
+        """
+        Delete file contents with string-based validation and multi-range deletions.
+
+        Args:
+            file_path (str): Path to the file to edit
+            deletions (List[Dict[str, Any]]): List of deletion operations, each containing:
+                - expected_content (str): Expected content to be deleted
+                - ranges (List[Dict]): Line ranges where this content should be deleted
+                    - start (int): Starting line number (1-based)
+                    - end (Optional[int]): Ending line number (null for end of file)
+
+        Returns:
+            Dict[str, Any]: Results of the operation
+        """
+        self._validate_file_path(file_path)
+        try:
+            if not os.path.exists(file_path):
+                return self.create_error_response(
+                    f"File not found: {file_path}",
+                    hint="File must exist before deleting content",
+                )
+
+            # Read current file content
+            (
+                current_file_content,
+                _,
+                _,
+                current_file_hash,
+                total_lines,
+                _,
+            ) = await self.read_file_contents(file_path, encoding=encoding)
+
+            if not current_file_content:
+                lines = []
+            else:
+                lines = current_file_content.splitlines(keepends=True)
+
+            # Collect all ranges for overlap validation
+            all_ranges = []
+            for deletion in deletions:
+                deletion_ranges = deletion["ranges"]
+                
+                # Validate ranges within this deletion don't overlap
+                for i in range(len(deletion_ranges)):
+                    for j in range(i + 1, len(deletion_ranges)):
+                        if self._ranges_overlap(deletion_ranges[i], deletion_ranges[j]):
+                            return self.create_error_response(
+                                "Overlapping ranges within deletion detected",
+                                hint="Ranges within a single deletion cannot overlap",
+                            )
+                
+                all_ranges.extend(deletion_ranges)
+
+            # Validate ranges across deletions don't overlap
+            for i in range(len(all_ranges)):
+                for j in range(i + 1, len(all_ranges)):
+                    if self._ranges_overlap(all_ranges[i], all_ranges[j]):
+                        return self.create_error_response(
+                            "Overlapping ranges across deletions detected",
+                            hint="Ranges across different deletions cannot overlap",
+                        )
+
+            # Validate string content and apply deletions
+            # Process deletions in reverse order to avoid line number shifts
+            sorted_deletions = sorted(
+                deletions,
+                key=lambda deletion: max(
+                    range_spec["start"] for range_spec in deletion["ranges"]
+                ),
+                reverse=True,
+            )
+
+            for deletion in sorted_deletions:
+                expected_content = deletion["expected_content"]
+                ranges = deletion["ranges"]
+
+                # Validate all ranges contain the expected content
+                for range_spec in ranges:
+                    start_zero = range_spec["start"] - 1
+                    end_zero = (
+                        len(lines) - 1
+                        if range_spec["end"] is None
+                        else range_spec["end"] - 1
+                    )
+
+                    if start_zero < 0 or start_zero >= len(lines):
+                        return self.create_error_response(
+                            f"Start line {range_spec['start']} is out of range (file has {len(lines)} lines)",
+                            content_hash=current_file_hash,
+                        )
+
+                    if end_zero >= len(lines):
+                        return self.create_error_response(
+                            f"End line {range_spec['end']} is out of range (file has {len(lines)} lines)",
+                            content_hash=current_file_hash,
+                        )
+
+                    actual_content = "".join(lines[start_zero:end_zero + 1])
+                    if actual_content != expected_content:
+                        return self.create_error_response(
+                            f"Content at lines {range_spec['start']}-{range_spec['end'] or 'end'} does not match expected string",
+                            content_hash=current_file_hash,
+                            hint="Check that the expected content exactly matches the file content",
+                        )
+
+                # Apply deletion to all ranges (process in reverse order)
+                for range_spec in sorted(ranges, key=lambda r: r["start"], reverse=True):
+                    start_zero = range_spec["start"] - 1
+                    end_zero = (
+                        len(lines) - 1
+                        if range_spec["end"] is None
+                        else range_spec["end"] - 1
+                    )
+                    
+                    # Delete the range
+                    del lines[start_zero:end_zero + 1]
+
+            # Write the modified content
+            new_content = "".join(lines)
+            with open(file_path, "w", encoding=encoding) as f:
+                f.write(new_content)
+
+            # Calculate new hash
+            new_hash = self.calculate_hash(new_content)
+
+            return {
+                "result": "ok",
+                "hash": new_hash,
+            }
+
+        except Exception as e:
+            logger.error(f"Error in delete_text_file_contents_v2: {str(e)}")
+            return self.create_error_response(str(e))
+
+    async def insert_text_file_contents_v2(
+        self,
+        file_path: str,
+        insertions: List[Dict[str, Any]],
+        encoding: str = "utf-8",
+    ) -> Dict[str, Any]:
+        """
+        Insert content into file with context validation.
+
+        Args:
+            file_path (str): Path to the file to edit
+            insertions (List[Dict[str, Any]]): List of insertion operations, each containing:
+                - content_to_insert (str): Content to insert
+                - position (str): "before" or "after" the reference line
+                - context_line (str): Expected content of the reference line
+                - line_number (int): Line number of the reference line
+
+        Returns:
+            Dict[str, Any]: Results of the operation
+        """
+        self._validate_file_path(file_path)
+        try:
+            if not os.path.exists(file_path):
+                return self.create_error_response(
+                    f"File not found: {file_path}",
+                    hint="File must exist before inserting content",
+                )
+
+            # Read current file content
+            (
+                current_file_content,
+                _,
+                _,
+                current_file_hash,
+                total_lines,
+                _,
+            ) = await self.read_file_contents(file_path, encoding=encoding)
+
+            if not current_file_content:
+                lines = []
+            else:
+                lines = current_file_content.splitlines(keepends=True)
+
+            # Validate and apply insertions
+            # Process insertions in reverse order to avoid line number shifts
+            sorted_insertions = sorted(
+                insertions,
+                key=lambda insertion: insertion["line_number"],
+                reverse=True,
+            )
+
+            for insertion in sorted_insertions:
+                content_to_insert = insertion["content_to_insert"]
+                position = insertion["position"]
+                context_line = insertion["context_line"]
+                line_number = insertion["line_number"]
+
+                # Validate line number
+                if line_number < 1 or line_number > len(lines):
+                    return self.create_error_response(
+                        f"Line number {line_number} is out of range (file has {len(lines)} lines)",
+                        content_hash=current_file_hash,
+                    )
+
+                # Validate context line
+                actual_line_content = lines[line_number - 1]
+                if actual_line_content.rstrip('\n\r') != context_line.rstrip('\n\r'):
+                    return self.create_error_response(
+                        f"Content at line {line_number} does not match expected context",
+                        content_hash=current_file_hash,
+                        hint="Check that the context line exactly matches the file content",
+                    )
+
+                # Ensure content to insert ends with newline if it doesn't already
+                if not content_to_insert.endswith('\n'):
+                    content_to_insert += '\n'
+
+                # Insert content
+                if position == "before":
+                    lines.insert(line_number - 1, content_to_insert)
+                else:  # position == "after"
+                    lines.insert(line_number, content_to_insert)
+
+            # Write the modified content
+            new_content = "".join(lines)
+            with open(file_path, "w", encoding=encoding) as f:
+                f.write(new_content)
+
+            # Calculate new hash
+            new_hash = self.calculate_hash(new_content)
+
+            return {
+                "result": "ok",
+                "hash": new_hash,
+            }
+
+        except Exception as e:
+            logger.error(f"Error in insert_text_file_contents_v2: {str(e)}")
+            return self.create_error_response(str(e))
+
+    async def append_text_file_contents_v2(
+        self,
+        file_path: str,
+        content_to_append: str,
+        expected_file_ending: str,
+        encoding: str = "utf-8",
+    ) -> Dict[str, Any]:
+        """
+        Append content to file with final-line validation.
+
+        Args:
+            file_path (str): Path to the file to edit
+            content_to_append (str): Content to append to the file
+            expected_file_ending (str): Expected content of the final line for validation
+            encoding (str): Text encoding
+
+        Returns:
+            Dict[str, Any]: Results of the operation
+        """
+        self._validate_file_path(file_path)
+        try:
+            if not os.path.exists(file_path):
+                return self.create_error_response(
+                    f"File not found: {file_path}",
+                    hint="File must exist before appending content",
+                )
+
+            # Read current file content
+            (
+                current_file_content,
+                _,
+                _,
+                current_file_hash,
+                total_lines,
+                _,
+            ) = await self.read_file_contents(file_path, encoding=encoding)
+
+            if not current_file_content:
+                lines = []
+            else:
+                lines = current_file_content.splitlines(keepends=True)
+
+            # Validate final line if file is not empty
+            if lines:
+                actual_final_line = lines[-1].rstrip('\n\r')
+                expected_final_line = expected_file_ending.rstrip('\n\r')
+                
+                if actual_final_line != expected_final_line:
+                    return self.create_error_response(
+                        "Final line does not match expected content",
+                        content_hash=current_file_hash,
+                        hint="Check that the expected file ending exactly matches the final line",
+                    )
+
+            # Ensure content to append ends with newline if it doesn't already
+            if not content_to_append.endswith('\n'):
+                content_to_append += '\n'
+
+            # Append content
+            with open(file_path, "a", encoding=encoding) as f:
+                f.write(content_to_append)
+
+            # Calculate new hash
+            new_content = current_file_content + content_to_append
+            new_hash = self.calculate_hash(new_content)
+
+            return {
+                "result": "ok",
+                "hash": new_hash,
+            }
+
+        except Exception as e:
+            logger.error(f"Error in append_text_file_contents_v2: {str(e)}")
+            return self.create_error_response(str(e))
