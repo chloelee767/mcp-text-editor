@@ -9,6 +9,7 @@ from typing import Any, Dict, Sequence
 from mcp.types import TextContent, Tool
 
 from mcp_text_editor.handlers.base import BaseHandler
+from mcp_text_editor.models import AppendTextFileContentsRequestV2
 
 logger = logging.getLogger("mcp-text-editor")
 
@@ -31,13 +32,13 @@ class AppendTextFileContentsHandler(BaseHandler):
                         "type": "string",
                         "description": "Path to the text file. File path must be absolute.",
                     },
-                    "contents": {
+                    "content_to_append": {
                         "type": "string",
                         "description": "Content to append to the file",
                     },
-                    "file_hash": {
+                    "expected_file_ending": {
                         "type": "string",
-                        "description": "Hash of the file contents for concurrency control. it should be matched with the file_hash when get_text_file_contents is called.",
+                        "description": "Expected content of the final line for validation",
                     },
                     "encoding": {
                         "type": "string",
@@ -45,59 +46,34 @@ class AppendTextFileContentsHandler(BaseHandler):
                         "default": "utf-8",
                     },
                 },
-                "required": ["file_path", "contents", "file_hash"],
+                "required": ["file_path", "content_to_append", "expected_file_ending"],
             },
         )
 
     async def run_tool(self, arguments: Dict[str, Any]) -> Sequence[TextContent]:
         """Execute the tool with given arguments."""
         try:
-            if "file_path" not in arguments:
-                raise RuntimeError("Missing required argument: file_path")
-            if "contents" not in arguments:
-                raise RuntimeError("Missing required argument: contents")
-            if "file_hash" not in arguments:
-                raise RuntimeError("Missing required argument: file_hash")
-
-            file_path = arguments["file_path"]
-            if not os.path.isabs(file_path):
-                raise RuntimeError(f"File path must be absolute: {file_path}")
+            # Validate arguments using the model
+            request = AppendTextFileContentsRequestV2(**arguments)
+            
+            if not os.path.isabs(request.file_path):
+                raise RuntimeError(f"File path must be absolute: {request.file_path}")
 
             # Check if file exists
-            if not os.path.exists(file_path):
-                raise RuntimeError(f"File does not exist: {file_path}")
+            if not os.path.exists(request.file_path):
+                raise RuntimeError(f"File does not exist: {request.file_path}")
 
-            encoding = arguments.get("encoding", "utf-8")
-
-            # Check file contents and hash before modification
-            # Get file information and verify hash
-            content, _, _, current_hash, total_lines, _ = (
-                await self.editor.read_file_contents(file_path, encoding=encoding)
+            # Use the new v2 method for string-based validation
+            result = await self.editor.append_text_file_contents_v2(
+                file_path=request.file_path,
+                content_to_append=request.content_to_append,
+                expected_file_ending=request.expected_file_ending,
+                encoding=request.encoding,
             )
 
-            # Verify file hash
-            if current_hash != arguments["file_hash"]:
-                raise RuntimeError("File hash mismatch - file may have been modified")
-
-            # Ensure the append content ends with newline
-            append_content = arguments["contents"]
-            if not append_content.endswith("\n"):
-                append_content += "\n"
-
-            # Create patch for append operation
-            result = await self.editor.edit_file_contents(
-                file_path,
-                expected_file_hash=arguments["file_hash"],
-                patches=[
-                    {
-                        "start": total_lines + 1,
-                        "end": None,
-                        "contents": append_content,
-                        "range_hash": "",
-                    }
-                ],
-                encoding=encoding,
-            )
+            # Check if the operation resulted in an error
+            if result.get("result") == "error":
+                raise RuntimeError(result.get("reason", "Unknown error occurred"))
 
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
