@@ -1,5 +1,9 @@
 # CLAUDE.md for mcp-text-editor
 
+## Project directories
+
+- `working-docs/`: this folder contains various scratch documents such as prompts and implementation plans. You usually should not read the documents here unless requested by the user.
+
 ## Local Testing
 
 Activate virtual env:
