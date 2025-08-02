@@ -9,7 +9,6 @@ from typing import Any, Dict, Sequence
 from mcp.types import TextContent, Tool
 
 from mcp_text_editor.handlers.base import BaseHandler
-from mcp_text_editor.models import DeleteTextFileContentsRequest, FileRange
 
 logger = logging.getLogger("mcp-text-editor")
 
@@ -18,7 +17,7 @@ class DeleteTextFileContentsHandler(BaseHandler):
     """Handler for deleting content from a text file."""
 
     name = "delete_text_file_contents"
-    description = "Delete specified content ranges from a text file. The file must exist. File paths must be absolute. You need to provide the file_hash comes from get_text_file_contents."
+    description = "Delete specified content ranges from a text file with string-based validation. Use expected_content to specify exact content to delete. Supports multi-range deletions."
 
     def get_tool_description(self) -> Tool:
         """Get the tool description."""
@@ -32,30 +31,36 @@ class DeleteTextFileContentsHandler(BaseHandler):
                         "type": "string",
                         "description": "Path to the text file. File path must be absolute.",
                     },
-                    "file_hash": {
-                        "type": "string",
-                        "description": "Hash of the file contents for concurrency control. it should be matched with the file_hash when get_text_file_contents is called.",
-                    },
-                    "ranges": {
+                    "deletions": {
                         "type": "array",
-                        "description": "List of line ranges to delete",
+                        "description": "List of deletion operations",
                         "items": {
                             "type": "object",
                             "properties": {
-                                "start": {
-                                    "type": "integer",
-                                    "description": "Starting line number (1-based)",
-                                },
-                                "end": {
-                                    "type": ["integer", "null"],
-                                    "description": "Ending line number (null for end of file)",
-                                },
-                                "range_hash": {
+                                "expected_content": {
                                     "type": "string",
-                                    "description": "Hash of the content being deleted. it should be matched with the range_hash when get_text_file_contents is called with the same range.",
+                                    "description": "Expected content to be deleted",
+                                },
+                                "ranges": {
+                                    "type": "array",
+                                    "description": "Line ranges where this content should be deleted",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "start": {
+                                                "type": "integer",
+                                                "description": "Starting line number (1-based)",
+                                            },
+                                            "end": {
+                                                "type": ["integer", "null"],
+                                                "description": "Ending line number (null for end of file)",
+                                            },
+                                        },
+                                        "required": ["start"],
+                                    },
                                 },
                             },
-                            "required": ["start", "range_hash"],
+                            "required": ["expected_content", "ranges"],
                         },
                     },
                     "encoding": {
@@ -64,7 +69,7 @@ class DeleteTextFileContentsHandler(BaseHandler):
                         "default": "utf-8",
                     },
                 },
-                "required": ["file_path", "file_hash", "ranges"],
+                "required": ["file_path", "deletions"],
             },
         )
 
@@ -74,47 +79,32 @@ class DeleteTextFileContentsHandler(BaseHandler):
             # Input validation
             if "file_path" not in arguments:
                 raise RuntimeError("Missing required argument: file_path")
-            if "file_hash" not in arguments:
-                raise RuntimeError("Missing required argument: file_hash")
-            if "ranges" not in arguments:
-                raise RuntimeError("Missing required argument: ranges")
+            if "deletions" not in arguments:
+                raise RuntimeError("Missing required argument: deletions")
 
             file_path = arguments["file_path"]
             if not os.path.isabs(file_path):
                 raise RuntimeError(f"File path must be absolute: {file_path}")
 
+            encoding = arguments.get("encoding", "utf-8")
+            deletions = arguments["deletions"]
+
+            if not isinstance(deletions, list) or len(deletions) == 0:
+                raise RuntimeError("deletions must be a non-empty list")
+
             # Check if file exists
             if not os.path.exists(file_path):
                 raise RuntimeError(f"File does not exist: {file_path}")
 
-            encoding = arguments.get("encoding", "utf-8")
-
-            # Create file ranges for deletion
-            ranges = [
-                FileRange(
-                    start=r["start"], end=r.get("end"), range_hash=r["range_hash"]
-                )
-                for r in arguments["ranges"]
-            ]
-
-            # Create delete request
-            request = DeleteTextFileContentsRequest(
+            # Execute deletion using the new v2 method
+            result = await self.editor.delete_text_file_contents_v2(
                 file_path=file_path,
-                file_hash=arguments["file_hash"],
-                ranges=ranges,
+                deletions=deletions,
                 encoding=encoding,
             )
 
-            # Execute deletion using the service
-            result_dict = self.editor.service.delete_text_file_contents(request)
-
-            # Convert EditResults to dictionaries
-            serializable_result = {}
-            for file_path, edit_result in result_dict.items():
-                serializable_result[file_path] = edit_result.to_dict()
-
             return [
-                TextContent(type="text", text=json.dumps(serializable_result, indent=2))
+                TextContent(type="text", text=json.dumps(result, indent=2))
             ]
 
         except Exception as e:
