@@ -9,6 +9,7 @@ from typing import Any, Dict, Sequence
 from mcp.types import TextContent, Tool
 
 from mcp_text_editor.handlers.base import BaseHandler
+from mcp_text_editor.models import DeleteTextFileContentsRequestV2, DeleteOperation
 
 logger = logging.getLogger("mcp-text-editor")
 
@@ -76,31 +77,36 @@ class DeleteTextFileContentsHandler(BaseHandler):
     async def run_tool(self, arguments: Dict[str, Any]) -> Sequence[TextContent]:
         """Execute the tool with given arguments."""
         try:
-            # Input validation
-            if "file_path" not in arguments:
-                raise RuntimeError("Missing required argument: file_path")
-            if "deletions" not in arguments:
-                raise RuntimeError("Missing required argument: deletions")
+            # Validate and parse arguments using models
+            try:
+                request = DeleteTextFileContentsRequestV2(**arguments)
+            except Exception as e:
+                raise RuntimeError(f"Invalid request format: {str(e)}") from e
 
-            file_path = arguments["file_path"]
-            if not os.path.isabs(file_path):
-                raise RuntimeError(f"File path must be absolute: {file_path}")
-
-            encoding = arguments.get("encoding", "utf-8")
-            deletions = arguments["deletions"]
-
-            if not isinstance(deletions, list) or len(deletions) == 0:
-                raise RuntimeError("deletions must be a non-empty list")
+            # Additional validation for absolute path
+            if not os.path.isabs(request.file_path):
+                raise RuntimeError(f"File path must be absolute: {request.file_path}")
 
             # Check if file exists
-            if not os.path.exists(file_path):
-                raise RuntimeError(f"File does not exist: {file_path}")
+            if not os.path.exists(request.file_path):
+                raise RuntimeError(f"File does not exist: {request.file_path}")
+
+            # Convert models to dictionaries for the text editor v2 method
+            deletions_data = []
+            for deletion in request.deletions:
+                deletion_dict = {
+                    "expected_content": deletion.expected_content,
+                    "ranges": [
+                        {"start": r.start, "end": r.end} for r in deletion.ranges
+                    ]
+                }
+                deletions_data.append(deletion_dict)
 
             # Execute deletion using the new v2 method
             result = await self.editor.delete_text_file_contents_v2(
-                file_path=file_path,
-                deletions=deletions,
-                encoding=encoding,
+                file_path=request.file_path,
+                deletions=deletions_data,
+                encoding=request.encoding,
             )
 
             return [

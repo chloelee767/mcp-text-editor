@@ -261,7 +261,7 @@ class DeleteOperation(BaseModel):
 class DeleteTextFileContentsRequestV2(BaseModel):
     """New request model for deleting text from files using string validation."""
     file_path: str = Field(..., description="Path to the text file")
-    deletions: List[DeleteOperation] = Field(..., description="List of deletion operations")
+    deletions: List[DeleteOperation] = Field(..., min_length=1, description="List of deletion operations")
     encoding: Optional[str] = Field("utf-8", description="Text encoding")
 
 

@@ -186,7 +186,7 @@ async def test_delete_text_file_contents_handler_validation():
             "encoding": "utf-8",
         }
         await handler.run_tool(arguments)
-    assert "Missing required argument: deletions" in str(exc_info.value)
+    assert ("deletions" in str(exc_info.value) and "required" in str(exc_info.value).lower()) or "Field required" in str(exc_info.value)
 
     # Test missing file_path
     with pytest.raises(RuntimeError) as exc_info:
@@ -195,7 +195,7 @@ async def test_delete_text_file_contents_handler_validation():
             "encoding": "utf-8",
         }
         await handler.run_tool(arguments)
-    assert "Missing required argument: file_path" in str(exc_info.value)
+    assert ("file_path" in str(exc_info.value) and "required" in str(exc_info.value).lower()) or "Field required" in str(exc_info.value)
 
     # Test relative file path
     with pytest.raises(RuntimeError) as exc_info:
@@ -215,7 +215,7 @@ async def test_delete_text_file_contents_handler_validation():
             "encoding": "utf-8",
         }
         await handler.run_tool(arguments)
-    assert "deletions must be a non-empty list" in str(exc_info.value)
+    assert "List should have at least 1 item" in str(exc_info.value) or "list should have at least 1 item" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
