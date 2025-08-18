@@ -5,12 +5,12 @@
             "encoding": "utf-8",
             "patches": [
                 {
-                    "old_string": "Line 5: Original content\n",
-                    "new_string": "Line 5: Updated content\nLine 6: New line added",
+                    "old_string": "Line 1: Original content\nLine 2: Original content\n",
+                    "new_string": "\tLine 1: Updated content\n\tLine 2: Updated content\n",
                     "ranges": [
                         {
-                            "start": 5,
-                            "end": 5
+                            "start": 1,
+                            "end": 2
                         }
                     ]
                 }
