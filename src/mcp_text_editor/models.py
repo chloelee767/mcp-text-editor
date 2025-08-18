@@ -127,77 +127,7 @@ class FileRanges(BaseModel):
     )
 
 
-class InsertTextFileContentsRequest(BaseModel):
-    """Request model for inserting text into a file.
 
-    Example:
-    {
-        "path": "/path/to/file",
-        "file_hash": "abc123...",
-        "after": 5,  # Insert after line 5
-        "contents": "new content"
-    }
-    or
-    {
-        "path": "/path/to/file",
-        "file_hash": "abc123...",
-        "before": 5,  # Insert before line 5
-        "contents": "new content"
-    }
-    """
-
-    path: str = Field(..., description="Path to the text file")
-    file_hash: str = Field(..., description="Hash of original contents")
-    after: Optional[int] = Field(
-        None, description="Line number after which to insert content"
-    )
-    before: Optional[int] = Field(
-        None, description="Line number before which to insert content"
-    )
-    encoding: Optional[str] = Field(
-        "utf-8", description="Text encoding (default: 'utf-8')"
-    )
-    contents: str = Field(..., description="Content to insert")
-
-    @model_validator(mode="after")
-    def validate_position(self) -> "InsertTextFileContentsRequest":
-        """Validate that exactly one of after or before is specified."""
-        if (self.after is None and self.before is None) or (
-            self.after is not None and self.before is not None
-        ):
-            raise ValueError("Exactly one of 'after' or 'before' must be specified")
-        return self
-
-    @field_validator("after", "before")
-    def validate_line_number(cls, v) -> Optional[int]:
-        """Validate that line numbers are positive."""
-        if v is not None and v < 1:
-            raise ValueError("Line numbers must be positive")
-        return v
-
-
-class DeleteTextFileContentsRequest(BaseModel):
-    """Request model for deleting text from a file.
-    Example:
-    {
-        "file_path": "/path/to/file",
-        "file_hash": "abc123...",
-        "ranges": [
-            {
-                "start": 5,
-                "end": 10,
-                "range_hash": "def456..."
-            }
-        ]
-    }
-    """
-
-    file_path: str = Field(..., description="Path to the text file")
-    file_hash: str = Field(..., description="Hash of original contents")
-    ranges: List[FileRange] = Field(..., description="List of ranges to delete")
-    encoding: Optional[str] = Field(
-        "utf-8", description="Text encoding (default: 'utf-8')"
-    )
 
 
 class PatchTextFileContentsRequest(BaseModel):
