@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import traceback
+from argparse import Namespace
 from collections.abc import Sequence
 from typing import Any, List
 
@@ -33,50 +34,83 @@ append_file_handler = AppendTextFileContentsHandler()
 delete_contents_handler = DeleteTextFileContentsHandler()
 insert_file_handler = InsertTextFileContentsHandler()
 
+class ToolManager:
+    def __init__(self, args: Namespace):
+        self.mode = args.mode
+        self.all_tools = [
+            get_contents_handler.get_tool_description(),
+            create_file_handler.get_tool_description(),
+            append_file_handler.get_tool_description(),
+            delete_contents_handler.get_tool_description(),
+            insert_file_handler.get_tool_description(),
+            patch_file_handler.get_tool_description(),
+        ]
+        self.claude_code_tools = [
+            patch_file_handler.get_tool_description(),
+        ]
 
-@app.list_tools()
-async def list_tools() -> List[Tool]:
+    def get_available_tools(self) -> List[Tool]:
+        if self.mode == "claude-code":
+            return self.claude_code_tools
+        return self.all_tools
+
+    async def call_tool(self, name: str, arguments: Any) -> Sequence[TextContent]:
+        logger.info(f"Calling tool: {name}")
+        try:
+            available_tools = [tool.name for tool in self.get_available_tools()]
+            if name not in available_tools:
+                raise ValueError(f"Unknown tool: {name}")
+
+            if name == get_contents_handler.name:
+                return await get_contents_handler.run_tool(arguments)
+            elif name == create_file_handler.name:
+                return await create_file_handler.run_tool(arguments)
+            elif name == append_file_handler.name:
+                return await append_file_handler.run_tool(arguments)
+            elif name == delete_contents_handler.name:
+                return await delete_contents_handler.run_tool(arguments)
+            elif name == insert_file_handler.name:
+                return await insert_file_handler.run_tool(arguments)
+            elif name == patch_file_handler.name:
+                return await patch_file_handler.run_tool(arguments)
+            else:
+                raise ValueError(f"Unknown tool: {name}")
+        except ValueError:
+            logger.error(traceback.format_exc())
+            raise
+        except Exception as e:
+            logger.error(traceback.format_exc())
+            raise RuntimeError(f"Error executing command: {str(e)}") from e
+
+# Module-level functions for testability
+async def list_tools(tool_manager: ToolManager) -> List[Tool]:
     """List available tools."""
-    return [
-        get_contents_handler.get_tool_description(),
-        create_file_handler.get_tool_description(),
-        append_file_handler.get_tool_description(),
-        delete_contents_handler.get_tool_description(),
-        insert_file_handler.get_tool_description(),
-        patch_file_handler.get_tool_description(),
-    ]
+    return tool_manager.get_available_tools()
 
 
-@app.call_tool()
-async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
+async def call_tool(name: str, arguments: Any, tool_manager: ToolManager) -> Sequence[TextContent]:
     """Handle tool calls."""
-    logger.info(f"Calling tool: {name}")
-    try:
-        if name == get_contents_handler.name:
-            return await get_contents_handler.run_tool(arguments)
-        elif name == create_file_handler.name:
-            return await create_file_handler.run_tool(arguments)
-        elif name == append_file_handler.name:
-            return await append_file_handler.run_tool(arguments)
-        elif name == delete_contents_handler.name:
-            return await delete_contents_handler.run_tool(arguments)
-        elif name == insert_file_handler.name:
-            return await insert_file_handler.run_tool(arguments)
-        elif name == patch_file_handler.name:
-            return await patch_file_handler.run_tool(arguments)
-        else:
-            raise ValueError(f"Unknown tool: {name}")
-    except ValueError:
-        logger.error(traceback.format_exc())
-        raise
-    except Exception as e:
-        logger.error(traceback.format_exc())
-        raise RuntimeError(f"Error executing command: {str(e)}") from e
+    return await tool_manager.call_tool(name, arguments)
 
 
-async def main() -> None:
+async def main(args: Namespace) -> None:
     """Main entry point for the MCP text editor server."""
     logger.info(f"Starting MCP text editor server v{__version__}")
+    if args.mode:
+        logger.info(f"Server mode: {args.mode}")
+
+    tool_manager = ToolManager(args)
+
+    @app.list_tools()
+    async def _list_tools() -> List[Tool]:
+        """List available tools."""
+        return await list_tools(tool_manager)
+
+    @app.call_tool()
+    async def _call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
+        """Handle tool calls."""
+        return await call_tool(name, arguments, tool_manager)
+
     try:
         from mcp.server.stdio import stdio_server
 
@@ -92,4 +126,8 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    from mcp_text_editor.args import create_argument_parser
+
+    parser = create_argument_parser()
+    args = parser.parse_args()
+    asyncio.run(main(args))

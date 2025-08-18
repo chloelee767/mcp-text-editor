@@ -2,6 +2,7 @@
 
 import asyncio
 
+from .args import create_argument_parser
 from .server import main
 from .text_editor import TextEditor
 
@@ -11,4 +12,6 @@ _text_editor = TextEditor()
 
 def run() -> None:
     """Run the MCP Text Editor Server."""
-    asyncio.run(main())
+    parser = create_argument_parser()
+    args = parser.parse_args()
+    asyncio.run(main(args))

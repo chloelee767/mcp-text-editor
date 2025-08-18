@@ -225,7 +225,6 @@ class TextEditor:
             if not os.path.exists(file_path):
                 return self.create_error_response(
                     f"File not found: {file_path}",
-                    suggestion="append",
                     hint="File must exist before applying patches",
                 )
 
@@ -354,7 +353,6 @@ class TextEditor:
         except FileNotFoundError:
             return self.create_error_response(
                 f"File not found: {file_path}",
-                suggestion="append",
                 hint="File must exist before applying patches",
             )
         except (IOError, UnicodeError, PermissionError) as e:

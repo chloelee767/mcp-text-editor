@@ -11,6 +11,7 @@ from pytest_mock import MockerFixture
 
 from mcp_text_editor.server import (
     GetTextFileContentsHandler,
+    ToolManager,
     app,
     append_file_handler,
     call_tool,
@@ -24,10 +25,26 @@ from mcp_text_editor.server import (
 )
 
 
+@pytest.fixture
+def default_tool_manager():
+    """Create a default ToolManager for testing."""
+    from argparse import Namespace
+    args = Namespace(mode=None)
+    return ToolManager(args)
+
+
+@pytest.fixture
+def claude_code_tool_manager():
+    """Create a ToolManager for claude-code mode."""
+    from argparse import Namespace
+    args = Namespace(mode="claude-code")
+    return ToolManager(args)
+
+
 @pytest.mark.asyncio
-async def test_list_tools():
+async def test_list_tools(default_tool_manager):
     """Test tool listing."""
-    tools: List[Tool] = await list_tools()
+    tools: List[Tool] = await list_tools(default_tool_manager)
     assert len(tools) == 6
 
     # Verify GetTextFileContents tool
@@ -37,6 +54,14 @@ async def test_list_tools():
     assert get_contents_tool is not None
     assert "file" in get_contents_tool.description.lower()
     assert "contents" in get_contents_tool.description.lower()
+
+
+@pytest.mark.asyncio
+async def test_list_tools_claude_code_mode(claude_code_tool_manager):
+    """Test tool listing in claude-code mode."""
+    tools: List[Tool] = await list_tools(claude_code_tool_manager)
+    assert len(tools) == 1
+    assert tools[0].name == "patch_text_file_contents"
 
 
 @pytest.mark.asyncio
@@ -51,10 +76,10 @@ async def test_get_contents_empty_files():
 
 
 @pytest.mark.asyncio
-async def test_unknown_tool_handler():
+async def test_unknown_tool_handler(default_tool_manager):
     """Test handling of unknown tool name."""
     with pytest.raises(ValueError) as excinfo:
-        await call_tool("unknown_tool", {})
+        await call_tool("unknown_tool", {}, default_tool_manager)
     assert "Unknown tool: unknown_tool" in str(excinfo.value)
 
 
@@ -87,10 +112,10 @@ async def test_get_contents_handler_invalid_file(test_file):
 
 
 @pytest.mark.asyncio
-async def test_call_tool_get_contents(test_file):
+async def test_call_tool_get_contents(test_file, default_tool_manager):
     """Test call_tool with GetTextFileContents."""
     args = {"files": [{"file_path": test_file, "ranges": [{"start": 1, "end": 3}]}]}
-    result = await call_tool("get_text_file_contents", args)
+    result = await call_tool("get_text_file_contents", args, default_tool_manager)
     assert len(result) == 1
     assert isinstance(result[0], TextContent)
     content = json.loads(result[0].text)
@@ -104,19 +129,19 @@ async def test_call_tool_get_contents(test_file):
 
 
 @pytest.mark.asyncio
-async def test_call_tool_unknown():
+async def test_call_tool_unknown(default_tool_manager):
     """Test call_tool with unknown tool."""
     with pytest.raises(ValueError) as exc_info:
-        await call_tool("UnknownTool", {})
+        await call_tool("UnknownTool", {}, default_tool_manager)
     assert "Unknown tool" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
-async def test_call_tool_error_handling():
+async def test_call_tool_error_handling(default_tool_manager):
     """Test call_tool error handling."""
     # Test with invalid arguments
     with pytest.raises(RuntimeError) as exc_info:
-        await call_tool("get_text_file_contents", {"invalid": "args"})
+        await call_tool("get_text_file_contents", {"invalid": "args"}, default_tool_manager)
     assert "Missing required argument" in str(exc_info.value)
 
     # Convert relative path to absolute
@@ -125,6 +150,7 @@ async def test_call_tool_error_handling():
         await call_tool(
             "get_text_file_contents",
             {"files": [{"file_path": nonexistent_path, "ranges": [{"start": 1}]}]},
+            default_tool_manager,
         )
     assert "File not found" in str(exc_info.value)
 
@@ -140,18 +166,21 @@ async def test_get_contents_handler_legacy_missing_args():
 @pytest.mark.asyncio
 async def test_main_stdio_server_error(mocker: MockerFixture):
     """Test main function with stdio_server error."""
+    from argparse import Namespace
     # Mock the stdio_server to raise an exception
     mock_stdio = mocker.patch.object(stdio, "stdio_server")
     mock_stdio.side_effect = Exception("Stdio server error")
 
+    args = Namespace(mode=None)
     with pytest.raises(Exception) as exc_info:
-        await main()
+        await main(args)
     assert "Stdio server error" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
 async def test_main_run_error(mocker: MockerFixture):
     """Test main function with app.run error."""
+    from argparse import Namespace
     # Mock the stdio_server context manager
     mock_stdio = mocker.patch.object(stdio, "stdio_server")
     mock_context = mocker.MagicMock()
@@ -162,8 +191,9 @@ async def test_main_run_error(mocker: MockerFixture):
     mock_run = mocker.patch.object(app, "run")
     mock_run.side_effect = Exception("App run error")
 
+    args = Namespace(mode=None)
     with pytest.raises(Exception) as exc_info:
-        await main()
+        await main(args)
     assert "App run error" in str(exc_info.value)
 
 
@@ -201,7 +231,7 @@ async def test_get_contents_absolute_path():
 
 
 @pytest.mark.asyncio
-async def test_call_tool_general_exception():
+async def test_call_tool_general_exception(default_tool_manager):
     """Test call_tool with a general exception."""
     # Patch get_contents_handler.run_tool to raise a general exception
     original_run_tool = get_contents_handler.run_tool
@@ -212,7 +242,7 @@ async def test_call_tool_general_exception():
     try:
         get_contents_handler.run_tool = mock_run_tool
         with pytest.raises(RuntimeError) as exc_info:
-            await call_tool("get_text_file_contents", {"files": []})
+            await call_tool("get_text_file_contents", {"files": []}, default_tool_manager)
         assert "Error executing command: Unexpected error" in str(exc_info.value)
     finally:
         # Restore original method
@@ -220,7 +250,7 @@ async def test_call_tool_general_exception():
 
 
 @pytest.mark.asyncio
-async def test_call_tool_all_handlers(mocker: MockerFixture):
+async def test_call_tool_all_handlers(mocker: MockerFixture, default_tool_manager):
     """Test call_tool with all handlers."""
     # Mock run_tool for each handler
     handlers = [
@@ -241,7 +271,33 @@ async def test_call_tool_all_handlers(mocker: MockerFixture):
 
     # Test each handler
     for handler in handlers:
-        result = await call_tool(handler.name, {"test": "args"})
+        result = await call_tool(handler.name, {"test": "args"}, default_tool_manager)
         assert len(result) == 1
         assert isinstance(result[0], TextContent)
         assert result[0].text == "mocked response"
+
+
+@pytest.mark.asyncio
+async def test_call_tool_claude_code_mode_allowed(claude_code_tool_manager):
+    """Test call_tool with allowed tool in claude-code mode."""
+    # Mock patch_file_handler.run_tool
+    original_run_tool = patch_file_handler.run_tool
+
+    async def mock_run_tool(args):
+        return [TextContent(text="patched", type="text")]
+
+    try:
+        patch_file_handler.run_tool = mock_run_tool
+        result = await call_tool("patch_text_file_contents", {"test": "args"}, claude_code_tool_manager)
+        assert len(result) == 1
+        assert result[0].text == "patched"
+    finally:
+        patch_file_handler.run_tool = original_run_tool
+
+
+@pytest.mark.asyncio
+async def test_call_tool_claude_code_mode_disallowed(claude_code_tool_manager):
+    """Test call_tool with disallowed tool in claude-code mode."""
+    with pytest.raises(ValueError) as exc_info:
+        await call_tool("get_text_file_contents", {"test": "args"}, claude_code_tool_manager)
+    assert "Unknown tool: get_text_file_contents" in str(exc_info.value)

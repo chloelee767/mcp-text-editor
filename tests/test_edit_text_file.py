@@ -104,7 +104,7 @@ async def test_edit_file_contents_v2_file_not_found(editor, tmp_path):
 
     assert result["result"] == "error"
     assert "File not found" in result["reason"]
-    assert result.get("suggestion") == "append"
+    assert "suggestion" not in result
 
 
 @pytest.mark.asyncio
