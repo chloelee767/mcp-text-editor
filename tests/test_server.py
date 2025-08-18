@@ -28,15 +28,15 @@ from mcp_text_editor.server import (
 async def test_list_tools():
     """Test tool listing."""
     tools: List[Tool] = await list_tools()
-    assert len(tools) == 5  # Updated count since get_text_file_contents is disabled
+    assert len(tools) == 6
 
-    # Verify GetTextFileContents tool is NOT present (temporarily disabled)
-    # get_contents_tool = next(
-    #     (tool for tool in tools if tool.name == "get_text_file_contents"), None
-    # )
-    # assert get_contents_tool is not None
-    # assert "file" in get_contents_tool.description.lower()
-    # assert "contents" in get_contents_tool.description.lower()
+    # Verify GetTextFileContents tool
+    get_contents_tool = next(
+        (tool for tool in tools if tool.name == "get_text_file_contents"), None
+    )
+    assert get_contents_tool is not None
+    assert "file" in get_contents_tool.description.lower()
+    assert "contents" in get_contents_tool.description.lower()
 
 
 @pytest.mark.asyncio
@@ -87,22 +87,22 @@ async def test_get_contents_handler_invalid_file(test_file):
     assert "File not found" in str(exc_info.value)
 
 
-# @pytest.mark.asyncio
-# async def test_call_tool_get_contents(test_file):
-#     """Test call_tool with GetTextFileContents."""
-#     args = {"files": [{"file_path": test_file, "ranges": [{"start": 1, "end": 3}]}]}
-#     result = await call_tool("get_text_file_contents", args)
-#     assert len(result) == 1
-#     assert isinstance(result[0], TextContent)
-#     content = json.loads(result[0].text)
-#     assert test_file in content
-#     range_result = content[test_file]["ranges"][0]
-#     assert "content" in range_result
-#     assert "start" in range_result
-#     assert "end" in range_result
-#     assert "file_hash" in content[test_file]
-#     assert "total_lines" in range_result
-#     assert "content_size" in range_result
+@pytest.mark.asyncio
+async def test_call_tool_get_contents(test_file):
+    """Test call_tool with GetTextFileContents."""
+    args = {"files": [{"file_path": test_file, "ranges": [{"start": 1, "end": 3}]}]}
+    result = await call_tool("get_text_file_contents", args)
+    assert len(result) == 1
+    assert isinstance(result[0], TextContent)
+    content = json.loads(result[0].text)
+    assert test_file in content
+    range_result = content[test_file]["ranges"][0]
+    assert "content" in range_result
+    assert "start" in range_result
+    assert "end" in range_result
+    assert "file_hash" in content[test_file]
+    assert "total_lines" in range_result
+    assert "content_size" in range_result
 
 
 @pytest.mark.asyncio
@@ -116,19 +116,19 @@ async def test_call_tool_unknown():
 @pytest.mark.asyncio
 async def test_call_tool_error_handling():
     """Test call_tool error handling."""
-    # Test with invalid arguments using create_text_file instead
+    # Test with invalid arguments
     with pytest.raises(RuntimeError) as exc_info:
-        await call_tool("create_text_file", {"invalid": "args"})
-    assert "Error executing command" in str(exc_info.value)
+        await call_tool("get_text_file_contents", {"invalid": "args"})
+    assert "Missing required argument" in str(exc_info.value)
 
-    # Test with nonexistent file path using create_text_file
-    nonexistent_path = str(Path("/nonexistent/directory/file.txt").absolute())
+    # Convert relative path to absolute
+    nonexistent_path = str(Path("nonexistent.txt").absolute())
     with pytest.raises(RuntimeError) as exc_info:
         await call_tool(
-            "create_text_file",
-            {"file_path": nonexistent_path, "content": "test"},
+            "get_text_file_contents",
+            {"files": [{"file_path": nonexistent_path, "ranges": [{"start": 1}]}]},
         )
-    assert "Error executing command" in str(exc_info.value)
+    assert "File not found" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
@@ -205,20 +205,20 @@ async def test_get_contents_absolute_path():
 @pytest.mark.asyncio
 async def test_call_tool_general_exception():
     """Test call_tool with a general exception."""
-    # Patch create_file_handler.run_tool to raise a general exception
-    original_run_tool = create_file_handler.run_tool
+    # Patch get_contents_handler.run_tool to raise a general exception
+    original_run_tool = get_contents_handler.run_tool
 
     async def mock_run_tool(args):
         raise Exception("Unexpected error")
 
     try:
-        create_file_handler.run_tool = mock_run_tool
+        get_contents_handler.run_tool = mock_run_tool
         with pytest.raises(RuntimeError) as exc_info:
-            await call_tool("create_text_file", {"file_path": "/tmp/test.txt", "content": "test"})
+            await call_tool("get_text_file_contents", {"files": []})
         assert "Error executing command: Unexpected error" in str(exc_info.value)
     finally:
         # Restore original method
-        create_file_handler.run_tool = original_run_tool
+        get_contents_handler.run_tool = original_run_tool
 
 
 @pytest.mark.asyncio

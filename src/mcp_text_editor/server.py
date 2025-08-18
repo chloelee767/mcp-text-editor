@@ -38,7 +38,7 @@ insert_file_handler = InsertTextFileContentsHandler()
 async def list_tools() -> List[Tool]:
     """List available tools."""
     return [
-        # get_contents_handler.get_tool_description(),  # Temporarily disabled
+        get_contents_handler.get_tool_description(),
         create_file_handler.get_tool_description(),
         append_file_handler.get_tool_description(),
         delete_contents_handler.get_tool_description(),
@@ -52,9 +52,9 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
     """Handle tool calls."""
     logger.info(f"Calling tool: {name}")
     try:
-        # if name == get_contents_handler.name:  # Temporarily disabled
-        #     return await get_contents_handler.run_tool(arguments)
-        if name == create_file_handler.name:
+        if name == get_contents_handler.name:
+            return await get_contents_handler.run_tool(arguments)
+        elif name == create_file_handler.name:
             return await create_file_handler.run_tool(arguments)
         elif name == append_file_handler.name:
             return await append_file_handler.run_tool(arguments)
