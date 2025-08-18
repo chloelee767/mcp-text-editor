@@ -64,21 +64,28 @@ class CreateTextFileHandler(BaseHandler):
                 raise RuntimeError(f"File already exists: {file_path}")
 
             encoding = arguments.get("encoding", "utf-8")
+            contents = arguments["contents"]
 
-            # Create new file using edit_file_contents with empty expected_hash
-            result = await self.editor.edit_file_contents(
-                file_path,
-                expected_file_hash="",  # Empty hash for new file
-                patches=[
-                    {
-                        "start": 1,
-                        "end": None,
-                        "contents": arguments["contents"],
-                        "range_hash": "",  # Empty range_hash for new file
-                    }
-                ],
-                encoding=encoding,
-            )
+            # Create parent directories if they don't exist
+            parent_dir = os.path.dirname(file_path)
+            if parent_dir:
+                try:
+                    os.makedirs(parent_dir, exist_ok=True)
+                except OSError as e:
+                    raise RuntimeError(f"Failed to create directory: {str(e)}")
+
+            # Write the file directly
+            with open(file_path, "w", encoding=encoding) as f:
+                f.write(contents)
+
+            # Calculate hash of created content
+            file_hash = self.editor.calculate_hash(contents)
+            
+            result = {
+                "result": "ok",
+                "file_hash": file_hash,
+                "message": f"File created successfully: {file_path}"
+            }
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
         except Exception as e:
