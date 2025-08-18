@@ -15,8 +15,7 @@ class GetTextFileContentsHandler(BaseHandler):
     name = "get_text_file_contents"
     description = (
         "Read text file contents from multiple files and line ranges. "
-        "Returns file contents with hashes for concurrency control and line numbers for reference. "
-        "The hashes are used to detect conflicts when editing the files. File paths must be absolute."
+        "Returns file contents with line numbers for reference. File paths must be absolute."
     )
 
     def get_tool_description(self) -> Tool:

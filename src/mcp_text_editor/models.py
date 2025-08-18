@@ -19,7 +19,6 @@ class GetTextFileContentsResponse(BaseModel):
     contents: str = Field(..., description="File contents")
     start: int = Field(..., description="Starting line number")
     end: int = Field(..., description="Ending line number")
-    hash: str = Field(..., description="Hash of the contents")
 
 
 class EditPatch(BaseModel):
@@ -61,24 +60,13 @@ class EditResult(BaseModel):
 
     result: str = Field(..., description="Operation result (ok/error)")
     reason: Optional[str] = Field(None, description="Error message if applicable")
-    hash: Optional[str] = Field(
-        None, description="Current content hash (None for missing files)"
-    )
 
-    @model_validator(mode="after")
-    def validate_error_result(self) -> "EditResult":
-        """Remove hash when result is error."""
-        if self.result == "error":
-            object.__setattr__(self, "hash", None)
-        return self
 
     def to_dict(self) -> Dict:
         """Convert EditResult to a dictionary."""
         result = {"result": self.result}
         if self.reason is not None:
             result["reason"] = self.reason
-        if self.hash is not None:
-            result["hash"] = self.hash
         return result
 
 

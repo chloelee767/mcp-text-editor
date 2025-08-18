@@ -77,13 +77,9 @@ class CreateTextFileHandler(BaseHandler):
             # Write the file directly
             with open(file_path, "w", encoding=encoding) as f:
                 f.write(contents)
-
-            # Calculate hash of created content
-            file_hash = self.editor.calculate_hash(contents)
             
             result = {
                 "result": "ok",
-                "file_hash": file_hash,
                 "message": f"File created successfully: {file_path}"
             }
             return [TextContent(type="text", text=json.dumps(result, indent=2))]

@@ -16,7 +16,6 @@ def test_create_error_response_basic(editor):
     response = editor.create_error_response("Test error")
     assert response["result"] == "error"
     assert response["reason"] == "Test error"
-    assert response["file_hash"] is None
     assert "hint" not in response
     assert "suggestion" not in response
 
@@ -47,10 +46,3 @@ def test_create_error_response_with_file_path(editor):
     assert response["/test/file.txt"]["hint"] == "Please try again"
 
 
-def test_create_error_response_with_hash(editor):
-    """Test error response with content hash."""
-    test_hash = "test_hash_value"
-    response = editor.create_error_response("Test error", content_hash=test_hash)
-    assert response["result"] == "error"
-    assert response["reason"] == "Test error"
-    assert response["file_hash"] == test_hash

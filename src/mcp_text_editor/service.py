@@ -1,6 +1,5 @@
 """Core service logic for the MCP Text Editor Server."""
 
-import hashlib
 from typing import Dict, List, Optional, Tuple
 
 from mcp_text_editor.models import (
@@ -14,10 +13,6 @@ from mcp_text_editor.models import (
 class TextEditorService:
     """Service class for text file operations."""
 
-    @staticmethod
-    def calculate_hash(content: str) -> str:
-        """Calculate SHA-256 hash of content."""
-        return hashlib.sha256(content.encode()).hexdigest()
 
     @staticmethod
     def read_file_contents(

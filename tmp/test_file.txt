@@ -2,4 +2,5 @@ Line 1: Original content
 Line 2: Original content
 Line 3: Original content
 Line 4: Original content
-Line 5: Original content
+Line 5: Updated content
+Line 6: New line added

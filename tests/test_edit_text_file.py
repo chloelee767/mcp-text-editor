@@ -62,7 +62,6 @@ async def test_edit_file_contents_v2_basic_replace(editor, test_file_v2):
     result = await editor.edit_file_contents_v2(str(test_file_v2), [patch])
 
     assert result["result"] == "ok"
-    assert "hash" in result
     expected_content = "Line 1\nModified Line 2\nLine 3\nLine 4\nLine 5\n"
     assert test_file_v2.read_text() == expected_content
 

@@ -71,7 +71,6 @@ async def test_get_contents_handler(test_file):
     assert "content" in range_result
     assert "start" in range_result
     assert "end" in range_result
-    assert "file_hash" in content[test_file]
     assert "total_lines" in range_result
     assert "content_size" in range_result
 
@@ -100,7 +99,6 @@ async def test_call_tool_get_contents(test_file):
     assert "content" in range_result
     assert "start" in range_result
     assert "end" in range_result
-    assert "file_hash" in content[test_file]
     assert "total_lines" in range_result
     assert "content_size" in range_result
 

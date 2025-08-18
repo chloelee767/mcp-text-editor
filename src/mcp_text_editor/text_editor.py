@@ -1,6 +1,5 @@
 """Core text editor functionality with file operation handling."""
 
-import hashlib
 import logging
 import os
 from typing import Any, Dict, List, Optional, Tuple
@@ -22,7 +21,6 @@ class TextEditor:
     def create_error_response(
         self,
         error_message: str,
-        content_hash: Optional[str] = None,
         file_path: Optional[str] = None,
         suggestion: Optional[str] = None,
         hint: Optional[str] = None,
@@ -31,7 +29,6 @@ class TextEditor:
 
         Args:
             error_message (str): The error message to include
-            content_hash (Optional[str], optional): Hash of the current content if available
             file_path (Optional[str], optional): File path to use as dictionary key
             suggestion (Optional[str], optional): Suggested operation type
             hint (Optional[str], optional): Hint message for users
@@ -42,12 +39,9 @@ class TextEditor:
         error_response = {
             "result": "error",
             "reason": error_message,
-            "file_hash": content_hash,
         }
 
         # Add fields if provided
-        if content_hash is not None:
-            error_response["file_hash"] = content_hash
         if suggestion:
             error_response["suggestion"] = suggestion
         if hint:
@@ -82,18 +76,6 @@ class TextEditor:
         if ".." in path_str:
             raise ValueError("Path traversal not allowed")
 
-    @staticmethod
-    def calculate_hash(content: str) -> str:
-        """
-        Calculate SHA-256 hash of content.
-
-        Args:
-            content (str): Content to hash
-
-        Returns:
-            str: Hex digest of SHA-256 hash
-        """
-        return hashlib.sha256(content.encode()).hexdigest()
 
     async def _read_file(
         self, file_path: str, encoding: str = "utf-8"
@@ -139,8 +121,7 @@ class TextEditor:
             lines, file_content, total_lines = await self._read_file(
                 file_path, encoding=encoding
             )
-            file_hash = self.calculate_hash(file_content)
-            result[file_path] = {"ranges": [], "file_hash": file_hash}
+            result[file_path] = {"ranges": []}
 
             for range_spec in file_range.ranges:
                 start = max(1, range_spec.start) - 1
@@ -158,7 +139,6 @@ class TextEditor:
                             "content": empty_content,
                             "start": start + 1,
                             "end": start + 1,
-                            "range_hash": self.calculate_hash(empty_content),
                             "total_lines": total_lines,
                             "content_size": 0,
                         }
@@ -167,14 +147,12 @@ class TextEditor:
 
                 selected_lines = lines[start:end]
                 content = "".join(selected_lines)
-                range_hash = self.calculate_hash(content)
 
                 result[file_path]["ranges"].append(
                     {
                         "content": content,
                         "start": start + 1,
                         "end": end,
-                        "range_hash": range_hash,
                         "total_lines": total_lines,
                         "content_size": len(content),
                     }
@@ -188,7 +166,7 @@ class TextEditor:
         start: int = 1,
         end: Optional[int] = None,
         encoding: str = "utf-8",
-    ) -> Tuple[str, int, int, str, int, int]:
+    ) -> Tuple[str, int, int, int, int]:
         lines, file_content, total_lines = await self._read_file(
             file_path, encoding=encoding
         )
@@ -201,21 +179,18 @@ class TextEditor:
 
         if start >= total_lines:
             empty_content = ""
-            empty_hash = self.calculate_hash(empty_content)
-            return empty_content, start, start, empty_hash, total_lines, 0
+            return empty_content, start, start, total_lines, 0
         if end < start:
             raise ValueError("End line must be greater than or equal to start line")
 
         selected_lines = lines[start:end]
         content = "".join(selected_lines)
-        content_hash = self.calculate_hash(content)
         content_size = len(content.encode(encoding))
 
         return (
             content,
             start + 1,
             end,
-            content_hash,
             total_lines,
             content_size,
         )
@@ -259,7 +234,6 @@ class TextEditor:
                 current_file_content,
                 _,
                 _,
-                current_file_hash,
                 total_lines,
                 _,
             ) = await self.read_file_contents(file_path, encoding=encoding)
@@ -372,12 +346,8 @@ class TextEditor:
             with open(file_path, "w", encoding=encoding) as f:
                 f.write(final_content)
 
-            # Calculate new hash
-            new_hash = self.calculate_hash(final_content)
-
             return {
                 "result": "ok",
-                "hash": new_hash,
                 "reason": None,
             }
 
@@ -448,7 +418,6 @@ class TextEditor:
                 current_file_content,
                 _,
                 _,
-                current_file_hash,
                 total_lines,
                 _,
             ) = await self.read_file_contents(file_path, encoding=encoding)
@@ -509,20 +478,17 @@ class TextEditor:
                     if start_zero < 0 or start_zero >= len(lines):
                         return self.create_error_response(
                             f"Start line {range_spec['start']} is out of range (file has {len(lines)} lines)",
-                            content_hash=current_file_hash,
                         )
 
                     if end_zero >= len(lines):
                         return self.create_error_response(
                             f"End line {range_spec['end']} is out of range (file has {len(lines)} lines)",
-                            content_hash=current_file_hash,
                         )
 
                     actual_content = "".join(lines[start_zero:end_zero + 1])
                     if actual_content != expected_content:
                         return self.create_error_response(
                             f"Content at lines {range_spec['start']}-{range_spec['end'] or 'end'} does not match expected string",
-                            content_hash=current_file_hash,
                             hint="Check that the expected content exactly matches the file content",
                         )
 
@@ -543,12 +509,8 @@ class TextEditor:
             with open(file_path, "w", encoding=encoding) as f:
                 f.write(new_content)
 
-            # Calculate new hash
-            new_hash = self.calculate_hash(new_content)
-
             return {
                 "result": "ok",
-                "hash": new_hash,
             }
 
         except Exception as e:
@@ -588,7 +550,6 @@ class TextEditor:
                 current_file_content,
                 _,
                 _,
-                current_file_hash,
                 total_lines,
                 _,
             ) = await self.read_file_contents(file_path, encoding=encoding)
@@ -616,7 +577,6 @@ class TextEditor:
                 if line_number < 1 or line_number > len(lines):
                     return self.create_error_response(
                         f"Line number {line_number} is out of range (file has {len(lines)} lines)",
-                        content_hash=current_file_hash,
                     )
 
                 # Validate context line
@@ -624,7 +584,6 @@ class TextEditor:
                 if actual_line_content.rstrip('\n\r') != context_line.rstrip('\n\r'):
                     return self.create_error_response(
                         f"Content at line {line_number} does not match expected context",
-                        content_hash=current_file_hash,
                         hint="Check that the context line exactly matches the file content",
                     )
 
@@ -643,12 +602,8 @@ class TextEditor:
             with open(file_path, "w", encoding=encoding) as f:
                 f.write(new_content)
 
-            # Calculate new hash
-            new_hash = self.calculate_hash(new_content)
-
             return {
                 "result": "ok",
-                "hash": new_hash,
             }
 
         except Exception as e:
@@ -687,7 +642,6 @@ class TextEditor:
                 current_file_content,
                 _,
                 _,
-                current_file_hash,
                 total_lines,
                 _,
             ) = await self.read_file_contents(file_path, encoding=encoding)
@@ -705,7 +659,6 @@ class TextEditor:
                 if actual_final_line != expected_final_line:
                     return self.create_error_response(
                         "Final line does not match expected content",
-                        content_hash=current_file_hash,
                         hint="Check that the expected file ending exactly matches the final line",
                     )
 
@@ -717,13 +670,8 @@ class TextEditor:
             with open(file_path, "a", encoding=encoding) as f:
                 f.write(content_to_append)
 
-            # Calculate new hash
-            new_content = current_file_content + content_to_append
-            new_hash = self.calculate_hash(new_content)
-
             return {
                 "result": "ok",
-                "hash": new_hash,
             }
 
         except Exception as e:
