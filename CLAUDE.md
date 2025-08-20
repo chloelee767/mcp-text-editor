@@ -25,8 +25,10 @@ Run unit tests:
 - If inside the virtualenv: `pytest`
 - If outside the virtualenv: `uv run pytest`
 
-## Information that may be useful
+## Documentation
 
-`./DEVELOPMENT.md` - use with care, some information may be outdated
-
-`./API_FLOW.md` - tracing the flow of various APIs
+  | File           | Purpose                  | Key Content                                   |
+  |----------------|--------------------------|-----------------------------------------------|
+  | README.md      | User-focused quick start | Installation, basic usage, mode options       |
+  | TOOLS.md       | Complete API reference   | All tools with examples and error handling    |
+  | DEVELOPMENT.md | Developer guide          | Setup, architecture, contribution guidelines  |

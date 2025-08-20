@@ -9,7 +9,7 @@ A Model Context Protocol (MCP) server that provides line-oriented text file edit
 
 ## Quick Start for Claude.app Users
 
-To use this editor with Claude.app, add the following configuration to your prompt:
+Add the following configuration to your Claude desktop config:
 
 ```shell
 code ~/Library/Application\ Support/Claude/claude_desktop_config.json
@@ -20,255 +20,111 @@ code ~/Library/Application\ Support/Claude/claude_desktop_config.json
   "mcpServers": {
     "text-editor": {
       "command": "uvx",
-      "args": [
-        "mcp-text-editor"
-      ]
+      "args": ["mcp-text-editor"]
     }
   }
 }
 ```
 
-or with docker:
+For Claude Code users, enable restricted mode with only the patch tool, since the rest of the tools are redundant with Claude Code's built in tools:
+
 ```json
 {
   "mcpServers": {
     "text-editor": {
-      "command": "docker",
-      "args": [
-          "run",
-          "-i",
-          "--rm",
-          "--mount",
-          "type=bind,src=/some/path/src,dst=/some/path/dst",
-          "mcp/text-editor"
-      ]
+      "command": "uvx", 
+      "args": ["mcp-text-editor", "--mode", "claude-code"]
     }
   }
 }
 ```
 
-## Overview
-
-MCP Text Editor Server is designed to facilitate safe and efficient line-based text file operations in a client-server architecture. It implements the Model Context Protocol, ensuring reliable file editing with robust conflict detection and resolution. The line-oriented approach makes it ideal for applications requiring synchronized file access, such as collaborative editing tools, automated text processing systems, or any scenario where multiple processes need to modify text files safely. The partial file access capability is particularly valuable for LLM-based tools, as it helps reduce token consumption by loading only the necessary portions of files.
-
-### Key Benefits
-
-- Line-based editing operations
-- Token-efficient partial file access with line-range specifications
-- Optimized for LLM tool integration
-- Safe concurrent editing with hash-based validation
-- Atomic multi-file operations
-- Robust error handling with custom error types
-- Comprehensive encoding support (utf-8, shift_jis, latin1, etc.)
-
-## Features
-
-- Line-oriented text file editing and reading
-- Smart partial file access to minimize token usage in LLM applications
-- Get text file contents with line range specification
-- Read multiple ranges from multiple files in a single operation
-- Line-based patch application with correct handling of line number shifts
-- Edit text file contents with conflict detection
-- Flexible character encoding support (utf-8, shift_jis, latin1, etc.)
-- Support for multiple file operations
-- Proper handling of concurrent edits with hash-based validation
-- Memory-efficient processing of large files
-
-## Requirements
-
-- Python 3.11 or higher
-- POSIX-compliant operating system (Linux, macOS, etc.) or Windows
-- Sufficient disk space for text file operations
-- File system permissions for read/write operations
-
-1. Install Python 3.11+
-
-```bash
-pyenv install 3.11.6
-pyenv local 3.11.6
-```
-
-2. Install uv (recommended) or pip
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-3. Create virtual environment and install dependencies
-
-```bash
-uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-uv pip install -e ".[dev]"
-```
-
-## Requirements
-
-- Python 3.13+
-- POSIX-compliant operating system (Linux, macOS, etc.) or Windows
-- File system permissions for read/write operations
-
 ## Installation
 
-### Run via uvx
+### Via uvx (Recommended)
 
 ```bash
 uvx mcp-text-editor
 ```
 
-### Installing via Smithery
+### Via Smithery
 
-To install Text Editor Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/mcp-text-editor):
+Install automatically for Claude Desktop via [Smithery](https://smithery.ai/server/mcp-text-editor):
 
 ```bash
 npx -y @smithery/cli install mcp-text-editor --client claude
 ```
 
-### Manual Installation
-
-1. Install Python 3.13+
+### Via Docker
 
 ```bash
-pyenv install 3.13.0
-pyenv local 3.13.0
+docker run -i --rm --mount "type=bind,src=/path/to/files,dst=/path/to/files" mcp/text-editor
 ```
 
-### Docker Installation
-```
+Build locally:
+```bash
 docker build --network=host -t mcp/text-editor .
 ```
 
-2. Install uv (recommended) or pip
+## Features
 
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
+- **Line-oriented editing**: Precise text file operations using line numbers
+- **Token-efficient**: Smart partial file access reduces LLM token consumption  
+- **Multi-file operations**: Edit multiple files in a single atomic operation
+- **Conflict detection**: String-based validation prevents data loss from concurrent edits
+- **Encoding support**: Handles various text encodings (UTF-8, Shift_JIS, Latin1, etc.)
+- **Safe operations**: Path validation and permission checks prevent unauthorized access
 
-3. Create virtual environment and install dependencies
+## Available Tools
 
-```bash
-uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-uv pip install -e ".[dev]"
-```
+- **get_text_file_contents**: Read file contents with optional line range specification
+- **patch_text_file_contents**: Apply targeted edits using string-based validation
+- **create_text_file**: Create new text files
+- **append_text_file_contents**: Append content to existing files
+- **insert_text_file_contents**: Insert content at specific line positions  
+- **delete_text_file_contents**: Delete specific line ranges from files
 
-## Usage
+For detailed API documentation and examples, see [TOOLS.md](TOOLS.md).
 
-Start the server:
+## Mode Options
 
-```bash
-python -m mcp_text_editor
-```
+### Default Mode
+All tools are available for comprehensive text editing operations.
 
-Start the server with docker:
+### Claude Code Mode (`--mode claude-code`)
+Restricted mode with only the `patch_text_file_contents` tool available. Designed for integration with Claude Code where built-in file operations handle most editing needs.
 
-```bash
-docker run -i --rm --mount "type=bind,src=/some/path/src,dst=/some/path/dst" mcp/text-editor
-```
+## Requirements
 
-with inspector:
+- Python 3.13 or higher
+- File system permissions for read/write operations
+- POSIX-compliant operating system (Linux, macOS) or Windows
 
-```bash
-npx @modelcontextprotocol/inspector docker run -i --rm --mount "type=bind,src=/some/path/src,dst=/some/path/dst" mcp/text-editor
-```
+## Usage Examples
 
-### MCP Tools
-
-The server provides several tools for text file manipulation:
-
-#### get_text_file_contents
-
-Get the contents of one or more text files with line range specification.
-
-**Request:**
-
+### Basic File Reading
 ```json
 {
   "files": [
     {
-      "file_path": "file1.txt",
-      "ranges": [
-        {"start": 1, "end": 10},
-        {"start": 20, "end": 30}
-      ],
-      "encoding": "shift_jis"  // Optional, defaults to utf-8
-    },
-    {
-      "file_path": "file2.txt",
-      "ranges": [
-        {"start": 5, "end": 15}
-      ]
+      "file_path": "/path/to/file.txt",
+      "ranges": [{"start": 1, "end": 10}]
     }
   ]
 }
 ```
 
-Parameters:
-- `file_path`: Path to the text file
-- `line_start`/`start`: Line number to start from (1-based)
-- `line_end`/`end`: Line number to end at (inclusive, null for end of file)
-- `encoding`: File encoding (default: "utf-8"). Specify the encoding of the text file (e.g., "shift_jis", "latin1")
-
-**Response:**
-
-```json
-{
-  "file1.txt": [
-    {
-      "content": "Lines 1-10 content",
-      "start": 1,
-      "end": 10,
-      "hash": "sha256-hash-1",
-      "total_lines": 50,
-      "content_size": 512
-    },
-    {
-      "content": "Lines 20-30 content",
-      "start": 20,
-      "end": 30,
-      "hash": "sha256-hash-2",
-      "total_lines": 50,
-      "content_size": 512
-    }
-  ],
-  "file2.txt": [
-    {
-      "content": "Lines 5-15 content",
-      "start": 5,
-      "end": 15,
-      "hash": "sha256-hash-3",
-      "total_lines": 30,
-      "content_size": 256
-    }
-  ]
-}
-```
-
-#### patch_text_file_contents
-
-Apply patches to text files with robust error handling and conflict detection. Supports editing multiple files in a single operation.
-
-**Request Format:**
-
+### String-Based Editing
 ```json
 {
   "files": [
     {
-      "file_path": "file1.txt",
-      "hash": "sha256-hash-from-get-contents",
-      "encoding": "utf-8",  // Optional, defaults to utf-8
+      "file_path": "/path/to/file.txt", 
       "patches": [
         {
-          "start": 5,
-          "end": 8,
-          "range_hash": "sha256-hash-of-content-being-replaced",
-          "contents": "New content for lines 5-8\n"
-        },
-        {
-          "start": 15,
-          "end": null,  // null means end of file
-          "range_hash": "sha256-hash-of-content-being-replaced",
-          "contents": "Content to append\n"
+          "old_string": "old content to replace",
+          "new_string": "new content",
+          "ranges": [{"start": 5, "end": 5}]
         }
       ]
     }
@@ -276,186 +132,29 @@ Apply patches to text files with robust error handling and conflict detection. S
 }
 ```
 
-Important Notes:
-1. Always get the current hash and range_hash using get_text_file_contents before editing
-2. Patches are applied from bottom to top to handle line number shifts correctly
-3. Patches must not overlap within the same file
-4. Line numbers are 1-based
-5. `end: null` can be used to append content to the end of file
-6. File encoding must match the encoding used in get_text_file_contents
+## Security
 
-**Success Response:**
+- **Path validation**: Prevents directory traversal attacks
+- **String verification**: Validates exact content matches to prevent data loss
+- **Input sanitization**: All inputs validated through type-safe models
+- **Permission respect**: Operates within file system permission boundaries
 
-```json
-{
-  "file1.txt": {
-    "result": "ok",
-    "hash": "sha256-hash-of-new-contents"
-  }
-}
-```
+## Documentation
 
-**Error Response with Hints:**
-
-```json
-{
-  "file1.txt": {
-    "result": "error",
-    "reason": "Content hash mismatch",
-    "suggestion": "get",  // Suggests using get_text_file_contents
-    "hint": "Please run get_text_file_contents first to get current content and hashes"
-  }
-}
-```
-
-    "result": "error",
-    "reason": "Content hash mismatch - file was modified",
-    "hash": "current-hash",
-    "content": "Current file content"
-
-  }
-}
-
-```
-
-### Common Usage Pattern
-
-1. Get current content and hash:
-
-```python
-contents = await get_text_file_contents({
-    "files": [
-        {
-            "file_path": "file.txt",
-            "ranges": [{"start": 1, "end": null}]  # Read entire file
-        }
-    ]
-})
-```
-
-2. Edit file content:
-
-```python
-result = await edit_text_file_contents({
-    "files": [
-        {
-            "path": "file.txt",
-            "hash": contents["file.txt"][0]["hash"],
-            "encoding": "utf-8",  # Optional, defaults to "utf-8"
-            "patches": [
-                {
-                    "line_start": 5,
-                    "line_end": 8,
-                    "contents": "New content\n"
-                }
-            ]
-        }
-    ]
-})
-```
-
-3. Handle conflicts:
-
-```python
-if result["file.txt"]["result"] == "error":
-    if "hash mismatch" in result["file.txt"]["reason"]:
-        # File was modified by another process
-        # Get new content and retry
-        pass
-```
-
-### Error Handling
-
-The server handles various error cases:
-- File not found
-- Permission errors
-- Hash mismatches (concurrent edit detection)
-- Invalid patch ranges
-- Overlapping patches
-- Encoding errors (when file cannot be decoded with specified encoding)
-- Line number out of bounds
-
-## Security Considerations
-
-- File Path Validation: The server validates all file paths to prevent directory traversal attacks
-- Access Control: Proper file system permissions should be set to restrict access to authorized directories
-- Hash Validation: All file modifications are validated using SHA-256 hashes to prevent race conditions
-- Input Sanitization: All user inputs are properly sanitized and validated
-- Error Handling: Sensitive information is not exposed in error messages
+- [TOOLS.md](TOOLS.md) - Complete API reference and examples
+- [DEVELOPMENT.md](DEVELOPMENT.md) - Development setup and contribution guide
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. Permission Denied
-   - Check file and directory permissions
-   - Ensure the server process has necessary read/write access
+**Permission Denied**: Ensure the server process has read/write access to target files and directories.
 
-2. Hash Mismatch and Range Hash Errors
-   - The file was modified by another process
-   - Content being replaced has changed
-   - Run get_text_file_contents to get fresh hashes
+**String Mismatch**: File content doesn't match expected string. Verify the exact content including whitespace and line endings.
 
-3. Encoding Issues
-   - Verify file encoding matches the specified encoding
-   - Use utf-8 for new files
-   - Check for BOM markers in files
+**Encoding Issues**: Verify the file encoding matches the specified encoding parameter. Default is UTF-8.
 
-4. Connection Issues
-   - Verify the server is running and accessible
-   - Check network configuration and firewall settings
-
-5. Performance Issues
-   - Consider using smaller line ranges for large files
-   - Monitor system resources (memory, disk space)
-   - Use appropriate encoding for file type
-
-## Development
-
-### Setup
-
-1. Clone the repository
-2. Create and activate a Python virtual environment: `uv venv` (`uv python install` if the appropriate python vesrion is missing)
-3. Install development dependencies: `uv pip install -e ".[dev]"` and `uv pip install -e ".[test]"`
-4. Run tests: `make all`
-
-### Code Quality Tools
-
-- Ruff for linting
-- Black for code formatting
-- isort for import sorting
-- mypy for type checking
-- pytest-cov for test coverage
-
-### Testing
-
-Tests are located in the `tests` directory and can be run with pytest:
-
-```bash
-# Run all tests
-pytest
-
-# Run tests with coverage report
-pytest --cov=mcp_text_editor --cov-report=term-missing
-
-# Run specific test file
-pytest tests/test_text_editor.py -v
-```
-
-Current test coverage: 90%
-
-### Useful tools
-
-``` bash
-# list all tools
-npx @modelcontextprotocol/inspector mcp-text-editor --cli --method tools/list
-
-# start the server + call a tool (inspector's cli tool is not very ergonomic for specifying the request)
-python call_mcp_tool.py --name get_text_file_contents --payload-file examples/get_file_contents.json
-
-# start interactive MCP Inspector webapp
-npx @modelcontextprotocol/inspector mcp-text-editor
-```
+**Content Validation Error**: The old_string doesn't exactly match the file content. Check for exact whitespace and character matching.
 
 ## License
 
@@ -463,24 +162,4 @@ MIT
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests and code quality checks
-5. Submit a pull request
-
-### Type Hints
-
-This project uses Python type hints throughout the codebase. Please ensure any contributions maintain this.
-
-### Error Handling
-
-All error cases should be handled appropriately and return meaningful error messages. The server should never crash due to invalid input or file operations.
-
-### Testing
-
-New features should include appropriate tests. Try to maintain or improve the current test coverage.
-
-### Code Style
-
-All code should be formatted with Black and pass Ruff linting. Import sorting should be handled by isort.
+See [DEVELOPMENT.md](DEVELOPMENT.md) for setup instructions, code style guidelines, and contribution process.
