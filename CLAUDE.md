@@ -27,8 +27,9 @@ Run unit tests:
 
 ## Documentation
 
-  | File           | Purpose                  | Key Content                                   |
-  |----------------|--------------------------|-----------------------------------------------|
-  | README.md      | User-focused quick start | Installation, basic usage, mode options       |
-  | TOOLS.md       | Complete API reference   | All tools with examples and error handling    |
-  | DEVELOPMENT.md | Developer guide          | Setup, architecture, contribution guidelines  |
+  | File            | Purpose                  | Key Content                                  |
+  |-----------------|--------------------------|----------------------------------------------|
+  | README.md       | User-focused quick start | Installation, basic usage, mode options      |
+  | TOOLS.md        | Complete API reference   | All tools with examples and error handling   |
+  | DEVELOPMENT.md  | Developer guide          | Setup, architecture, contribution guidelines |
+  | examples/*.json | Developer guide          | Sample request payloads                      |
