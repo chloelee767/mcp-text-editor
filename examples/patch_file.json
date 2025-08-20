@@ -3,6 +3,7 @@
         {
             "file_path": "/Users/chloelee/Code/mcp-text-editor/tmp/test_file.txt",
             "encoding": "utf-8",
+            "require_exact_match": false,
             "patches": [
                 {
                     "old_string": "Line 5: Original content\n",

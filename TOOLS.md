@@ -90,6 +90,7 @@ Apply patches to text files using string-based validation. This is the primary e
     {
       "file_path": "/absolute/path/to/file.txt",
       "encoding": "utf-8",  // Optional
+      "require_exact_match": false,  // Optional
       "patches": [
         {
           "old_string": "exact content to replace",
@@ -105,13 +106,14 @@ Apply patches to text files using string-based validation. This is the primary e
 **Parameters:**
 - `file_path`: Absolute path to the file to edit
 - `encoding`: Text encoding (default: "utf-8")
+- `require_exact_match`: Whether to require exact whitespace matching (default: false). When false, trailing whitespace on each line is ignored when matching old_string. When true, users MUST carefully count and ensure whitespace matches exactly.
 - `patches`: Array of patch operations
   - `old_string`: Exact text content to be replaced
   - `new_string`: New content to replace with
   - `ranges`: Line ranges where this patch applies
 
 **Important Notes:**
-1. `old_string` must match the file content exactly, including whitespace
+1. `old_string` must match the file content exactly. By default, trailing whitespace is ignored per line (require_exact_match=false). When require_exact_match=true, whitespace must match exactly.
 2. Patches are applied from highest to lowest line number to handle line shifts
 3. Patches within a file must not have overlapping ranges
 4. Multi-range patches apply the same string replacement to all specified ranges
@@ -228,7 +230,8 @@ Append content to the end of existing files with final-line validation.
   "file_path": "/absolute/path/to/file.txt",
   "content_to_append": "Content to append...",
   "expected_file_ending": "last line of file",
-  "encoding": "utf-8"  // Optional
+  "encoding": "utf-8",  // Optional
+  "require_exact_match": false  // Optional
 }
 ```
 
@@ -237,6 +240,7 @@ Append content to the end of existing files with final-line validation.
 - `content_to_append`: Content to append to the file
 - `expected_file_ending`: Expected content of the final line for validation
 - `encoding`: Text encoding (default: "utf-8")
+- `require_exact_match`: Whether to require exact whitespace matching (default: false). When false, trailing whitespace is ignored when matching expected_file_ending. When true, users MUST carefully count and ensure whitespace matches exactly.
 
 **Response Format:**
 
@@ -275,7 +279,8 @@ Insert content at specific line positions with context validation.
       "line_number": 10
     }
   ],
-  "encoding": "utf-8"  // Optional
+  "encoding": "utf-8",  // Optional
+  "require_exact_match": false  // Optional
 }
 ```
 
@@ -287,6 +292,7 @@ Insert content at specific line positions with context validation.
   - `context_line`: Expected content of the reference line
   - `line_number`: Line number of the reference line
 - `encoding`: Text encoding (default: "utf-8")
+- `require_exact_match`: Whether to require exact whitespace matching (default: false). When false, trailing whitespace is ignored when matching context_line. When true, users MUST carefully count and ensure whitespace matches exactly.
 
 **Response Format:**
 
@@ -331,7 +337,8 @@ Delete specified line ranges from files with string-based validation.
       ]
     }
   ],
-  "encoding": "utf-8"  // Optional
+  "encoding": "utf-8",  // Optional
+  "require_exact_match": false  // Optional
 }
 ```
 
@@ -343,6 +350,7 @@ Delete specified line ranges from files with string-based validation.
     - `start`: Starting line number (1-based)
     - `end`: Ending line number (inclusive)
 - `encoding`: Text encoding (default: "utf-8")
+- `require_exact_match`: Whether to require exact whitespace matching (default: false). When false, trailing whitespace is ignored when matching expected_content. When true, users MUST carefully count and ensure whitespace matches exactly.
 
 **Response Format:**
 
@@ -413,7 +421,10 @@ Delete specified line ranges from files with string-based validation.
 ### Error Recovery Patterns
 
 1. **For content validation errors**: Use `get_text_file_contents` to verify current content
-2. **For string mismatches**: Ensure exact content matching including whitespace and line endings
+2. **For string mismatches**: 
+   - By default, trailing whitespace is ignored (require_exact_match=false)
+   - If require_exact_match=true, ensure exact whitespace and line ending matching
+   - Use `get_text_file_contents` to inspect current content
 3. **For encoding issues**: Try different encoding or check file format
 4. **For permission errors**: Verify file/directory permissions
 
@@ -431,7 +442,8 @@ Delete specified line ranges from files with string-based validation.
 In `--mode claude-code`, only `patch_text_file_contents` is available:
 - Uses string-based validation for precise content matching
 - More flexible for automated editing scenarios
-- Requires exact string matching in `old_string` parameter
+- By default, trailing whitespace is ignored (require_exact_match=false)
+- Set require_exact_match=true for strict whitespace matching when needed
 - Ideal for LLM-driven code editing workflows
 
 ### Performance Tips
