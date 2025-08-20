@@ -413,7 +413,7 @@ class TextEditor:
             
         # Compare each line ignoring trailing whitespace
         for actual_line, expected_line in zip(actual_lines, expected_lines):
-            if actual_line.rstrip() != expected_line.rstrip():
+            if actual_line.strip() != expected_line.strip():
                 return False
                 
         return True
