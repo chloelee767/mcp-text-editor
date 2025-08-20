@@ -69,6 +69,11 @@ class DeleteTextFileContentsHandler(BaseHandler):
                         "description": "Text encoding (default: 'utf-8')",
                         "default": "utf-8",
                     },
+                    "require_exact_match": {
+                        "type": "boolean",
+                        "description": "Whether to require exact whitespace matching. Default is false, which ignores trailing whitespace on each line when matching expected_content against file content. If true, users MUST carefully count and ensure that the number and type of whitespaces on each line matches the existing text exactly.",
+                        "default": False,
+                    },
                 },
                 "required": ["file_path", "deletions"],
             },
@@ -102,11 +107,15 @@ class DeleteTextFileContentsHandler(BaseHandler):
                 }
                 deletions_data.append(deletion_dict)
 
+            # Get require_exact_match parameter
+            require_exact_match = arguments.get("require_exact_match", False)
+
             # Execute deletion using the new v2 method
             result = await self.editor.delete_text_file_contents_v2(
                 file_path=request.file_path,
                 deletions=deletions_data,
                 encoding=request.encoding,
+                require_exact_match=require_exact_match,
             )
 
             return [

@@ -63,6 +63,11 @@ class InsertTextFileContentsHandler(BaseHandler):
                         "description": "Text encoding (default: 'utf-8')",
                         "default": "utf-8",
                     },
+                    "require_exact_match": {
+                        "type": "boolean",
+                        "description": "Whether to require exact whitespace matching. Default is false, which ignores trailing whitespace on each line when matching context_line against file content. If true, users MUST carefully count and ensure that the number and type of whitespaces on each line matches the existing text exactly.",
+                        "default": False,
+                    },
                 },
                 "required": ["file_path", "insertions"],
             },
@@ -85,6 +90,7 @@ class InsertTextFileContentsHandler(BaseHandler):
                 raise RuntimeError("insertions must be a non-empty list")
 
             encoding = arguments.get("encoding", "utf-8")
+            require_exact_match = arguments.get("require_exact_match", False)
 
             # Validate insertion operations
             for i, insertion in enumerate(insertions):
@@ -111,6 +117,7 @@ class InsertTextFileContentsHandler(BaseHandler):
                 file_path=file_path,
                 insertions=insertions,
                 encoding=encoding,
+                require_exact_match=require_exact_match,
             )
             
             return [TextContent(type="text", text=json.dumps(result, indent=2))]

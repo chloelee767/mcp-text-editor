@@ -78,6 +78,11 @@ class PatchTextFileContentsHandler(BaseHandler):
                                         "required": ["old_string", "new_string", "ranges"],
                                     },
                                 },
+                                "require_exact_match": {
+                                    "type": "boolean",
+                                    "description": "Whether to require exact whitespace matching. Default is false, which ignores trailing whitespace on each line when matching old_string against file content. If true, users MUST carefully count and ensure that the number and type of whitespaces on each line matches the existing text exactly.",
+                                    "default": False,
+                                },
                             },
                             "required": ["file_path", "patches"],
                         },
@@ -110,12 +115,14 @@ class PatchTextFileContentsHandler(BaseHandler):
 
                 encoding = file_op.get("encoding", "utf-8")
                 patches = file_op["patches"]
+                require_exact_match = file_op.get("require_exact_match", False)
 
                 # Apply patches using the new editor method
                 result = await self.editor.edit_file_contents_v2(
                     file_path=file_path,
                     patches=patches,
                     encoding=encoding,
+                    require_exact_match=require_exact_match,
                 )
                 
                 results.append({

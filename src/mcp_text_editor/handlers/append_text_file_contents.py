@@ -45,6 +45,11 @@ class AppendTextFileContentsHandler(BaseHandler):
                         "description": "Text encoding (default: 'utf-8')",
                         "default": "utf-8",
                     },
+                    "require_exact_match": {
+                        "type": "boolean",
+                        "description": "Whether to require exact whitespace matching. Default is false, which ignores trailing whitespace on each line when matching expected_file_ending against file content. If true, users MUST carefully count and ensure that the number and type of whitespaces on each line matches the existing text exactly.",
+                        "default": False,
+                    },
                 },
                 "required": ["file_path", "content_to_append", "expected_file_ending"],
             },
@@ -53,6 +58,9 @@ class AppendTextFileContentsHandler(BaseHandler):
     async def run_tool(self, arguments: Dict[str, Any]) -> Sequence[TextContent]:
         """Execute the tool with given arguments."""
         try:
+            # Get require_exact_match parameter
+            require_exact_match = arguments.get("require_exact_match", False)
+            
             # Validate arguments using the model
             request = AppendTextFileContentsRequestV2(**arguments)
             
@@ -69,6 +77,7 @@ class AppendTextFileContentsHandler(BaseHandler):
                 content_to_append=request.content_to_append,
                 expected_file_ending=request.expected_file_ending,
                 encoding=request.encoding,
+                require_exact_match=require_exact_match,
             )
 
             # Check if the operation resulted in an error

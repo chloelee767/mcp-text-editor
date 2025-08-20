@@ -201,6 +201,7 @@ class TextEditor:
         file_path: str,
         patches: List[Dict[str, Any]],
         encoding: str = "utf-8",
+        require_exact_match: bool = False,
     ) -> Dict[str, Any]:
         """
         Edit file contents with string-based validation and multi-range patches.
@@ -213,6 +214,9 @@ class TextEditor:
                 - ranges (List[Dict]): Line ranges where this patch applies
                     - start (int): Starting line number (1-based)
                     - end (Optional[int]): Ending line number (null for end of file)
+            encoding (str): File encoding
+            require_exact_match (bool): If True, requires exact whitespace matching. 
+                                      If False, ignores trailing whitespace per line.
 
         Returns:
             Dict[str, Any]: Results of the operation containing:
@@ -313,11 +317,14 @@ class TextEditor:
                         )
 
                     actual_content = "".join(lines[start_zero : end_zero + 1])
-                    if actual_content != old_string:
+                    if not self._content_matches(actual_content, old_string, require_exact_match):
                         return self.create_error_response(
                             f"Content at lines {range_spec['start']}-{range_spec['end'] or 'EOF'} does not match expected string",
                             suggestion="patch",
-                            hint="The old_string must exactly match the content at specified ranges",
+                            hint="The old_string must match the content at specified ranges" + (
+                                " (exact whitespace match required)" if require_exact_match 
+                                else " (trailing whitespace ignored)"
+                            ),
                         )
 
                 # Apply replacement to all ranges (in reverse order)
@@ -381,6 +388,36 @@ class TextEditor:
 
         return start1 <= end2 and end1 >= start2
 
+    def _content_matches(self, actual: str, expected: str, require_exact_match: bool = False) -> bool:
+        """
+        Compare two strings with optional whitespace flexibility.
+        
+        Args:
+            actual: Actual content from file
+            expected: Expected content to match
+            require_exact_match: If True, requires exact match. If False, ignores trailing whitespace per line.
+            
+        Returns:
+            bool: True if content matches according to the matching rules
+        """
+        if require_exact_match:
+            return actual == expected
+            
+        # For flexible matching, compare line by line ignoring trailing whitespace
+        actual_lines = actual.splitlines()
+        expected_lines = expected.splitlines()
+        
+        # Must have same number of lines
+        if len(actual_lines) != len(expected_lines):
+            return False
+            
+        # Compare each line ignoring trailing whitespace
+        for actual_line, expected_line in zip(actual_lines, expected_lines):
+            if actual_line.rstrip() != expected_line.rstrip():
+                return False
+                
+        return True
+
 
 
     async def delete_text_file_contents_v2(
@@ -388,6 +425,7 @@ class TextEditor:
         file_path: str,
         deletions: List[Dict[str, Any]],
         encoding: str = "utf-8",
+        require_exact_match: bool = False,
     ) -> Dict[str, Any]:
         """
         Delete file contents with string-based validation and multi-range deletions.
@@ -399,6 +437,9 @@ class TextEditor:
                 - ranges (List[Dict]): Line ranges where this content should be deleted
                     - start (int): Starting line number (1-based)
                     - end (Optional[int]): Ending line number (null for end of file)
+            encoding (str): File encoding
+            require_exact_match (bool): If True, requires exact whitespace matching. 
+                                      If False, ignores trailing whitespace per line.
 
         Returns:
             Dict[str, Any]: Results of the operation
@@ -484,10 +525,13 @@ class TextEditor:
                         )
 
                     actual_content = "".join(lines[start_zero:end_zero + 1])
-                    if actual_content != expected_content:
+                    if not self._content_matches(actual_content, expected_content, require_exact_match):
                         return self.create_error_response(
                             f"Content at lines {range_spec['start']}-{range_spec['end'] or 'end'} does not match expected string",
-                            hint="Check that the expected content exactly matches the file content",
+                            hint="Check that the expected content matches the file content" + (
+                                " (exact whitespace match required)" if require_exact_match 
+                                else " (trailing whitespace ignored)"
+                            ),
                         )
 
                 # Apply deletion to all ranges (process in reverse order)
@@ -520,6 +564,7 @@ class TextEditor:
         file_path: str,
         insertions: List[Dict[str, Any]],
         encoding: str = "utf-8",
+        require_exact_match: bool = False,
     ) -> Dict[str, Any]:
         """
         Insert content into file with context validation.
@@ -531,6 +576,9 @@ class TextEditor:
                 - position (str): "before" or "after" the reference line
                 - context_line (str): Expected content of the reference line
                 - line_number (int): Line number of the reference line
+            encoding (str): File encoding
+            require_exact_match (bool): If True, requires exact whitespace matching. 
+                                      If False, ignores trailing whitespace per line.
 
         Returns:
             Dict[str, Any]: Results of the operation
@@ -579,10 +627,13 @@ class TextEditor:
 
                 # Validate context line
                 actual_line_content = lines[line_number - 1]
-                if actual_line_content.rstrip('\n\r') != context_line.rstrip('\n\r'):
+                if not self._content_matches(actual_line_content, context_line + '\n', require_exact_match):
                     return self.create_error_response(
                         f"Content at line {line_number} does not match expected context",
-                        hint="Check that the context line exactly matches the file content",
+                        hint="Check that the context line matches the file content" + (
+                            " (exact whitespace match required)" if require_exact_match 
+                            else " (trailing whitespace ignored)"
+                        ),
                     )
 
                 # Ensure content to insert ends with newline if it doesn't already
@@ -614,6 +665,7 @@ class TextEditor:
         content_to_append: str,
         expected_file_ending: str,
         encoding: str = "utf-8",
+        require_exact_match: bool = False,
     ) -> Dict[str, Any]:
         """
         Append content to file with final-line validation.
@@ -623,6 +675,8 @@ class TextEditor:
             content_to_append (str): Content to append to the file
             expected_file_ending (str): Expected content of the final line for validation
             encoding (str): Text encoding
+            require_exact_match (bool): If True, requires exact whitespace matching. 
+                                      If False, ignores trailing whitespace per line.
 
         Returns:
             Dict[str, Any]: Results of the operation
@@ -651,13 +705,16 @@ class TextEditor:
 
             # Validate final line if file is not empty
             if lines:
-                actual_final_line = lines[-1].rstrip('\n\r')
-                expected_final_line = expected_file_ending.rstrip('\n\r')
+                actual_final_line_content = lines[-1]
+                expected_final_line_content = expected_file_ending + '\n' if not expected_file_ending.endswith('\n') else expected_file_ending
                 
-                if actual_final_line != expected_final_line:
+                if not self._content_matches(actual_final_line_content, expected_final_line_content, require_exact_match):
                     return self.create_error_response(
                         "Final line does not match expected content",
-                        hint="Check that the expected file ending exactly matches the final line",
+                        hint="Check that the expected file ending matches the final line" + (
+                            " (exact whitespace match required)" if require_exact_match 
+                            else " (trailing whitespace ignored)"
+                        ),
                     )
 
             # Ensure content to append ends with newline if it doesn't already
