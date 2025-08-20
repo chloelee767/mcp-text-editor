@@ -279,13 +279,23 @@ async def test_append_text_file_validation_edge_cases(test_dir: str, cleanup_fil
     response = await append_handler.run_tool(arguments)
     assert '"result": "ok"' in response[0].text
 
-    # Test case 2: Incorrect whitespace should fail
+    # Test case 2: With flexible matching (default), missing trailing spaces should succeed
     with open(test_file, "w", encoding="utf-8") as f:
         f.write(initial_content)
     
-    arguments_wrong = arguments.copy()
-    arguments_wrong["expected_file_ending"] = "Content with spaces"  # Missing trailing spaces
+    arguments_flexible = arguments.copy()
+    arguments_flexible["expected_file_ending"] = "Content with spaces"  # Missing trailing spaces
+    
+    response = await append_handler.run_tool(arguments_flexible)
+    assert '"result": "ok"' in response[0].text
+    
+    # Test case 3: With exact matching, missing trailing spaces should fail
+    with open(test_file, "w", encoding="utf-8") as f:
+        f.write(initial_content)
+    
+    arguments_exact = arguments_flexible.copy()
+    arguments_exact["require_exact_match"] = True
     
     with pytest.raises(RuntimeError) as exc_info:
-        await append_handler.run_tool(arguments_wrong)
+        await append_handler.run_tool(arguments_exact)
     assert "mismatch" in str(exc_info.value).lower() or "expected" in str(exc_info.value).lower()
