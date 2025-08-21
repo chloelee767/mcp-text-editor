@@ -216,7 +216,7 @@ class TextEditor:
                     - end (Optional[int]): Ending line number (null for end of file)
             encoding (str): File encoding
             require_exact_match (bool): If True, requires exact whitespace matching. 
-                                      If False, ignores trailing whitespace per line.
+                                      If False, ignores leading and trailing whitespace per line.
 
         Returns:
             Dict[str, Any]: Results of the operation containing:
@@ -323,7 +323,7 @@ class TextEditor:
                             suggestion="patch",
                             hint="The old_string must match the content at specified ranges" + (
                                 " (exact whitespace match required)" if require_exact_match 
-                                else " (trailing whitespace ignored)"
+                                else " (leading and trailing whitespace ignored)"
                             ),
                         )
 
@@ -395,7 +395,7 @@ class TextEditor:
         Args:
             actual: Actual content from file
             expected: Expected content to match
-            require_exact_match: If True, requires exact match. If False, ignores trailing whitespace per line.
+            require_exact_match: If True, requires exact match. If False, ignores leading and trailing whitespace per line.
             
         Returns:
             bool: True if content matches according to the matching rules
@@ -403,7 +403,7 @@ class TextEditor:
         if require_exact_match:
             return actual == expected
             
-        # For flexible matching, compare line by line ignoring trailing whitespace
+        # For flexible matching, compare line by line ignoring leading and trailing whitespace
         actual_lines = actual.splitlines()
         expected_lines = expected.splitlines()
         
@@ -411,7 +411,7 @@ class TextEditor:
         if len(actual_lines) != len(expected_lines):
             return False
             
-        # Compare each line ignoring trailing whitespace
+        # Compare each line ignoring leading and trailing whitespace
         for actual_line, expected_line in zip(actual_lines, expected_lines):
             if actual_line.strip() != expected_line.strip():
                 return False
@@ -439,7 +439,7 @@ class TextEditor:
                     - end (Optional[int]): Ending line number (null for end of file)
             encoding (str): File encoding
             require_exact_match (bool): If True, requires exact whitespace matching. 
-                                      If False, ignores trailing whitespace per line.
+                                      If False, ignores leading and trailing whitespace per line.
 
         Returns:
             Dict[str, Any]: Results of the operation
@@ -530,7 +530,7 @@ class TextEditor:
                             f"Content at lines {range_spec['start']}-{range_spec['end'] or 'end'} does not match expected string",
                             hint="Check that the expected content matches the file content" + (
                                 " (exact whitespace match required)" if require_exact_match 
-                                else " (trailing whitespace ignored)"
+                                else " (leading and trailing whitespace ignored)"
                             ),
                         )
 
@@ -578,7 +578,7 @@ class TextEditor:
                 - line_number (int): Line number of the reference line
             encoding (str): File encoding
             require_exact_match (bool): If True, requires exact whitespace matching. 
-                                      If False, ignores trailing whitespace per line.
+                                      If False, ignores leading and trailing whitespace per line.
 
         Returns:
             Dict[str, Any]: Results of the operation
@@ -632,7 +632,7 @@ class TextEditor:
                         f"Content at line {line_number} does not match expected context",
                         hint="Check that the context line matches the file content" + (
                             " (exact whitespace match required)" if require_exact_match 
-                            else " (trailing whitespace ignored)"
+                            else " (leading and trailing whitespace ignored)"
                         ),
                     )
 
@@ -676,7 +676,7 @@ class TextEditor:
             expected_file_ending (str): Expected content of the final line for validation
             encoding (str): Text encoding
             require_exact_match (bool): If True, requires exact whitespace matching. 
-                                      If False, ignores trailing whitespace per line.
+                                      If False, ignores leading and trailing whitespace per line.
 
         Returns:
             Dict[str, Any]: Results of the operation
@@ -713,7 +713,7 @@ class TextEditor:
                         "Final line does not match expected content",
                         hint="Check that the expected file ending matches the final line" + (
                             " (exact whitespace match required)" if require_exact_match 
-                            else " (trailing whitespace ignored)"
+                            else " (leading and trailing whitespace ignored)"
                         ),
                     )
 

@@ -71,7 +71,7 @@ class DeleteTextFileContentsHandler(BaseHandler):
                     },
                     "require_exact_match": {
                         "type": "boolean",
-                        "description": "Whether to require exact whitespace matching. Default is false, which ignores trailing whitespace on each line when matching expected_content against file content. If true, users MUST carefully count and ensure that the number and type of whitespaces on each line matches the existing text exactly.",
+                        "description": "Whether to require exact whitespace matching. Default is false, which ignores leading and trailing whitespace on each line when matching expected_content against file content. If true, users MUST carefully count and ensure that the number and type of whitespaces on each line matches the existing text exactly.",
                         "default": False,
                     },
                 },
