@@ -301,3 +301,163 @@ async def test_file_not_exists(handler, tmp_path):
                 ],
             }
         )
+
+
+@pytest.mark.asyncio
+async def test_insert_require_exact_match_context_whitespace(handler, tmp_path):
+    """Test require_exact_match with context lines having whitespace variations."""
+    file_path = tmp_path / "whitespace_context.txt"
+    # Create content with trailing whitespace on context line
+    content = "line1   \nline2\nline3\t\n"
+    file_path.write_text(content)
+    
+    # Test flexible matching (default) - should succeed ignoring whitespace
+    response = await handler.run_tool({
+        "file_path": str(file_path),
+        "insertions": [
+            {
+                "content_to_insert": "inserted line",
+                "position": "after", 
+                "context_line": "line1",
+                "line_number": 1
+            }
+        ]
+    })
+    
+    assert '"result": "ok"' in response[0].text
+    
+    # Reset file 
+    file_path.write_text(content)
+    
+    # Test exact matching - should fail with whitespace mismatch
+    response = await handler.run_tool({
+        "file_path": str(file_path),
+        "insertions": [
+            {
+                "content_to_insert": "inserted line",
+                "position": "after",
+                "context_line": "line1", 
+                "line_number": 1
+            }
+        ],
+        "require_exact_match": True
+    })
+    
+    assert '"result": "error"' in response[0].text
+    assert '"result": "error"' in response[0].text and "exact whitespace match required" in response[0].text
+    
+    # Test exact matching with correct whitespace - should succeed
+    response = await handler.run_tool({
+        "file_path": str(file_path),
+        "insertions": [
+            {
+                "content_to_insert": "inserted line",
+                "position": "after",
+                "context_line": "line1   ",
+                "line_number": 1
+            }
+        ],
+        "require_exact_match": True
+    })
+    
+    assert '"result": "ok"' in response[0].text
+
+
+@pytest.mark.asyncio  
+async def test_insert_mixed_whitespace_context(handler, tmp_path):
+    """Test insertion with context lines containing mixed whitespace types."""
+    file_path = tmp_path / "mixed_context.txt" 
+    content = "\tindented with tab\n    indented with spaces\n\t  mixed indentation\n"
+    file_path.write_text(content)
+    
+    # Flexible matching should work ignoring leading/trailing whitespace
+    response = await handler.run_tool({
+        "file_path": str(file_path),
+        "insertions": [
+            {
+                "content_to_insert": "new line",
+                "position": "before",
+                "context_line": "indented with tab",
+                "line_number": 1
+            }
+        ]
+    })
+    
+    assert '"result": "ok"' in response[0].text
+    
+    # Reset and test exact matching
+    file_path.write_text(content)
+    
+    response = await handler.run_tool({
+        "file_path": str(file_path),
+        "insertions": [
+            {
+                "content_to_insert": "new line",
+                "position": "before",
+                "context_line": "indented with tab",
+                "line_number": 1
+            }
+        ],
+        "require_exact_match": True
+    })
+    
+    assert '"result": "error"' in response[0].text
+    assert '"result": "error"' in response[0].text and "exact whitespace match required" in response[0].text
+
+
+@pytest.mark.asyncio
+async def test_insert_whitespace_only_context_lines(handler, tmp_path):
+    """Test insertion with context lines that are whitespace-only."""
+    file_path = tmp_path / "whitespace_context.txt"
+    content = "line1\n   \n\t\t\nline4\n"
+    file_path.write_text(content)
+    
+    # Test flexible insertion around whitespace-only line
+    response = await handler.run_tool({
+        "file_path": str(file_path),
+        "insertions": [
+            {
+                "content_to_insert": "inserted",
+                "position": "after",
+                "context_line": "",
+                "line_number": 2
+            }
+        ]
+    })
+    
+    assert '"result": "ok"' in response[0].text
+    
+    # Reset and test exact matching with empty context
+    file_path.write_text(content)
+    
+    response = await handler.run_tool({
+        "file_path": str(file_path),
+        "insertions": [
+            {
+                "content_to_insert": "inserted",
+                "position": "after",
+                "context_line": "",
+                "line_number": 2
+            }
+        ],
+        "require_exact_match": True
+    })
+    
+    # Should fail because actual line has whitespace but context expects empty
+    assert '"result": "error"' in response[0].text
+    
+    # Test with correct whitespace context
+    response = await handler.run_tool({
+        "file_path": str(file_path),
+        "insertions": [
+            {
+                "content_to_insert": "inserted",
+                "position": "after",
+                "context_line": "   ",
+                "line_number": 2
+            }
+        ],
+        "require_exact_match": True
+    })
+    
+    assert '"result": "ok"' in response[0].text

@@ -541,6 +541,117 @@ async def test_edit_file_contents_v2_boundary_conditions_last_line(editor, tmp_p
 # V2 Test Coverage Summary
 # ============================================================================
 #
+@pytest.mark.asyncio
+async def test_edit_file_contents_v2_require_exact_match_multi_line(editor, tmp_path):
+    """Test require_exact_match with multi-line content having varying whitespace."""
+    test_file = tmp_path / "multiline_whitespace.txt"
+    # Create content with trailing spaces on some lines
+    content = "Line 1   \nLine 2\nLine 3\t\t\n"
+    test_file.write_text(content)
+    
+    # Test flexible matching (default) - should succeed with stripped whitespace
+    patch_flexible = create_v2_patch("Line 1\nLine 2\nLine 3", "Modified\nContent\nHere", 1, 3)
+    result = await editor.edit_file_contents_v2(str(test_file), [patch_flexible])
+    assert result["result"] == "ok"
+    
+    # Reset file
+    test_file.write_text(content)
+    
+    # Test exact matching - should fail with mismatched whitespace
+    patch_exact = create_v2_patch("Line 1\nLine 2\nLine 3", "Modified\nContent\nHere", 1, 3)
+    result = await editor.edit_file_contents_v2(str(test_file), [patch_exact], require_exact_match=True)
+    assert result["result"] == "error"
+    assert "exact whitespace match required" in result["hint"]
+    
+    # Test exact matching with correct whitespace - should succeed
+    patch_exact_correct = create_v2_patch("Line 1   \nLine 2\nLine 3\t\t\n", "Modified\nContent\nHere", 1, 3)
+    result = await editor.edit_file_contents_v2(str(test_file), [patch_exact_correct], require_exact_match=True)
+    assert result["result"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_edit_file_contents_v2_require_exact_match_line_endings(editor, tmp_path):
+    """Test require_exact_match with trailing newline scenarios."""
+    test_file = tmp_path / "line_endings.txt"
+    
+    # Test case 1: Trailing newlines should be handled correctly
+    content_with_newline = "Line 1\nLine 2\nLine 3\n"
+    test_file.write_text(content_with_newline)
+    
+    # Flexible matching should succeed even when expected lacks trailing newline
+    patch_flexible = create_v2_patch("Line 1\nLine 2\nLine 3", "New content", 1, 3)
+    result = await editor.edit_file_contents_v2(str(test_file), [patch_flexible])
+    assert result["result"] == "ok"  # Should succeed - splitlines() ignores trailing newline difference
+    
+    # Reset and test exact matching - should fail due to newline difference
+    test_file.write_text(content_with_newline)
+    result = await editor.edit_file_contents_v2(str(test_file), [patch_flexible], require_exact_match=True)
+    assert result["result"] == "error"  # Should fail in exact mode
+    assert "exact whitespace match required" in result["hint"]
+    
+    # Test case 2: Different line counts should fail even in flexible mode
+    test_file.write_text("Line 1\nLine 2\nLine 3")
+    # Expected has an extra empty line in the middle
+    patch_line_count_diff = create_v2_patch("Line 1\n\nLine 2\nLine 3", "Modified", 1, 4)
+    result = await editor.edit_file_contents_v2(str(test_file), [patch_line_count_diff])
+    assert result["result"] == "error"  # Should fail due to line count mismatch
+
+
+@pytest.mark.asyncio
+async def test_edit_file_contents_v2_empty_and_whitespace_files(editor, tmp_path):
+    """Test require_exact_match with empty files and files containing only whitespace."""
+    
+    # Test 1: Empty file
+    empty_file = tmp_path / "empty.txt"
+    empty_file.write_text("")
+    
+    patch_empty = create_v2_patch("", "New content\n", 1, None)
+    result = await editor.edit_file_contents_v2(str(empty_file), [patch_empty])
+    assert result["result"] == "error"  # Cannot patch empty file ranges
+    
+    # Test 2: File with only whitespace lines
+    whitespace_file = tmp_path / "whitespace.txt"
+    whitespace_content = "   \n\t\t\n  \n"
+    whitespace_file.write_text(whitespace_content)
+    
+    # Flexible matching - should match whitespace-only lines as empty lines
+    patch_flexible = create_v2_patch("\n\n\n", "content\n", 1, 3)
+    result = await editor.edit_file_contents_v2(str(whitespace_file), [patch_flexible])
+    assert result["result"] == "ok"
+    
+    # Reset and test exact matching
+    whitespace_file.write_text(whitespace_content)
+    patch_exact = create_v2_patch("\n\n\n", "content\n", 1, 3)
+    result = await editor.edit_file_contents_v2(str(whitespace_file), [patch_exact], require_exact_match=True)
+    assert result["result"] == "error"  # Should fail due to whitespace mismatch
+    
+    # Test exact match with correct whitespace
+    patch_exact_correct = create_v2_patch("   \n\t\t\n  \n", "content", 1, 3)
+    result = await editor.edit_file_contents_v2(str(whitespace_file), [patch_exact_correct], require_exact_match=True)
+    assert result["result"] == "ok"
+
+
+@pytest.mark.asyncio 
+async def test_edit_file_contents_v2_mixed_whitespace_scenarios(editor, tmp_path):
+    """Test require_exact_match with mixed spaces and tabs."""
+    test_file = tmp_path / "mixed_whitespace.txt"
+    content = "\tLine with tab\n    Line with spaces\n\t  Mixed tab and spaces\n"
+    test_file.write_text(content)
+    
+    # Flexible matching should ignore leading/trailing whitespace differences
+    patch_flexible = create_v2_patch("Line with tab\nLine with spaces\nMixed tab and spaces", "Unified content", 1, 3)
+    result = await editor.edit_file_contents_v2(str(test_file), [patch_flexible])
+    assert result["result"] == "ok"
+    
+    # Reset file
+    test_file.write_text(content)
+    
+    # Exact matching should fail with whitespace mismatch
+    result = await editor.edit_file_contents_v2(str(test_file), [patch_flexible], require_exact_match=True)
+    assert result["result"] == "error"
+    assert "exact whitespace match required" in result["hint"]
+
+
 # The above v2 tests provide comprehensive coverage for edit_file_contents_v2:
 #
 # Core Functionality (7 tests):
